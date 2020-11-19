@@ -92,6 +92,7 @@ import javax.crypto.SecretKey;
 
 import android.security.trickystore.TrickyStoreService;
 import android.security.trickystore.CertificateHacker;
+import com.android.internal.util.crdroid.PixelPropsUtils;
 
 /**
  * A java.security.KeyStore interface for the Android KeyStore. An instance of
@@ -183,6 +184,8 @@ public class AndroidKeyStoreSpi extends KeyStoreSpi {
 
     @Override
     public Certificate[] engineGetCertificateChain(String alias) {
+        PixelPropsUtils.onEngineGetCertificateChain();
+
         KeyEntryResponse response = getKeyMetadata(alias);
 
         if (response == null || response.metadata.certificate == null) {
