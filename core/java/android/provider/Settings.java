@@ -7316,6 +7316,12 @@ public final class Settings {
         public static final String SCREEN_OFF_ANIMATION = "screen_off_animation";
 
         /**
+         * Whether to enable small size landcape notifications or not
+         * @hide
+         */
+        public static final String SMALL_LANDSCAPE_NOTIFICATION = "small_landscape_notification";
+
+        /**
          * Whether to show rotation suggestion
          * @hide
          */
