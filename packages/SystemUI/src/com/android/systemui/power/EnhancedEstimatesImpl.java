@@ -1,109 +1,125 @@
 package com.android.systemui.power;
 
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
 import android.provider.Settings;
 import android.util.KeyValueListParser;
 import android.util.Log;
 
-import com.android.internal.util.crdroid.Utils;
 import com.android.settingslib.fuelgauge.Estimate;
+import com.android.settingslib.fuelgauge.EstimateKt;
 import com.android.settingslib.utils.PowerUtil;
 import com.android.systemui.dagger.SysUISingleton;
-import com.android.systemui.power.EnhancedEstimates;
-import com.android.systemui.util.settings.GlobalSettings;
 
 import java.time.Duration;
 
 import javax.inject.Inject;
 
 @SysUISingleton
-public final class EnhancedEstimatesImpl implements EnhancedEstimates {
+public class EnhancedEstimatesImpl implements EnhancedEstimates {
 
     private static final String TAG = "EnhancedEstimatesImpl";
 
-    private static final Estimate EMPTY_ESTIMATE = new Estimate(-1L, false, -1L);
+    private static final String TURBO_PACKAGE = "com.google.android.apps.turbo";
+    private static final String TURBO_AUTHORITY = TURBO_PACKAGE + ".estimated_time_remaining";
 
-    private static final Duration DAY = Duration.ofDays(1L);
-    private static final long HOUR = Duration.ofHours(1L).toMillis();
-    private static final long THREE_HOURS = Duration.ofHours(3L).toMillis();
-    private static final long FIFTEEN_MINUTES = Duration.ofMinutes(15L).toMillis();
-
-    private final Context mContext;
-    private final GlobalSettings mGlobalSettings;
-    private final KeyValueListParser mParser;
+    private Context mContext;
+    private final KeyValueListParser mParser = new KeyValueListParser(',');
 
     @Inject
-    public EnhancedEstimatesImpl(
-        Context context,
-        GlobalSettings globalSettings
-    ) {
+    public EnhancedEstimatesImpl(Context context) {
         mContext = context;
-        mGlobalSettings = globalSettings;
-        mParser = new KeyValueListParser(',');
     }
 
     @Override
     public boolean isHybridNotificationEnabled() {
-        final boolean isTurboInstalled = Utils.isPackageInstalled(
-            mContext,
-            "com.google.android.apps.turbo",
-            false /* ignoreState */
-        );
-        if (!isTurboInstalled) return false;
-        updateFlags();
-        return mParser.getBoolean("hybrid_enabled", true);
+        try {
+            if (!mContext.getPackageManager()
+                    .getPackageInfo(
+                            TURBO_PACKAGE,
+                            PackageManager.MATCH_DISABLED_COMPONENTS)
+                    .applicationInfo
+                    .enabled) {
+                return false;
+            }
+            updateFlags();
+            return mParser.getBoolean("hybrid_enabled", true);
+        } catch (PackageManager.NameNotFoundException unused) {
+            return false;
+        }
     }
 
     @Override
     public Estimate getEstimate() {
-        final Uri build = new Uri.Builder()
-            .scheme("content")
-            .authority("com.google.android.apps.turbo.estimated_time_remaining")
-            .appendPath("time_remaining")
-            .build();
-        try (final Cursor query = mContext.getContentResolver().query(build, null, null, null, null)) {
-            if (query == null) return EMPTY_ESTIMATE;
-            try {
-                if (query.moveToFirst()) {
-                    long timeRemaining = -1L;
-                    final int usageColumnIndex = query.getColumnIndex("is_based_on_usage");
-                    final boolean isBasedOnUsage = usageColumnIndex != -1 && query.getInt(usageColumnIndex) != 0;
-                    final int batteryLifecolumnIndex = query.getColumnIndex("average_battery_life");
-                    if (batteryLifecolumnIndex != -1) {
-                        final long averageBatteryLife = query.getLong(batteryLifecolumnIndex);
-                        if (averageBatteryLife != -1L) {
-                            final long duration = Duration.ofMillis(averageBatteryLife).compareTo(DAY) >= 0
-                                ? HOUR : FIFTEEN_MINUTES;
-                            timeRemaining = PowerUtil.roundTimeToNearestThreshold(averageBatteryLife, duration);
+        Uri build =
+                new Uri.Builder()
+                        .scheme("content")
+                        .authority(TURBO_AUTHORITY)
+                        .appendPath("time_remaining")
+                        .build();
+        try {
+            Cursor query = mContext.getContentResolver().query(build, null, null, null, null);
+            if (query != null) {
+                try {
+                    if (query.moveToFirst()) {
+                        long timeRemaining = -1L;
+                        boolean isBasedOnUsage = true;
+                        if (query.getColumnIndex("is_based_on_usage") != -1
+                                && query.getInt(query.getColumnIndex("is_based_on_usage")) == 0) {
+                            isBasedOnUsage = false;
                         }
+                        int columnIndex = query.getColumnIndex("average_battery_life");
+                        if (columnIndex != -1) {
+                            long averageBatteryLife = query.getLong(columnIndex);
+                            if (averageBatteryLife != -1L) {
+                                long duration = Duration.ofMinutes(15L).toMillis();
+                                if (Duration.ofMillis(averageBatteryLife)
+                                                .compareTo(Duration.ofDays(1L))
+                                        >= 0) {
+                                    duration = Duration.ofHours(1L).toMillis();
+                                }
+                                timeRemaining =
+                                        PowerUtil.roundTimeToNearestThreshold(
+                                                averageBatteryLife, duration);
+                            }
+                        }
+                        Estimate estimate =
+                                new Estimate(
+                                        query.getLong(query.getColumnIndex("battery_estimate")),
+                                        isBasedOnUsage,
+                                        timeRemaining);
+                        query.close();
+                        return estimate;
                     }
-                    return new Estimate(
-                        query.getLong(query.getColumnIndex("battery_estimate")),
-                        isBasedOnUsage,
-                        timeRemaining
-                    );
+                } catch (Exception ex) {
+                    // Catch and release
                 }
-            } catch (Exception ex) {
-                // Catch and release
             }
-        } catch (Exception e) {
-            Log.e(TAG, "Something went wrong when getting an estimate from Turbo", e);
+            if (query != null) {
+                query.close();
+            }
+        } catch (Exception exception) {
+            Log.d(TAG, "Something went wrong when getting an estimate from Turbo", exception);
         }
-        return EMPTY_ESTIMATE;
+        // Returns an unknown estimate.
+        return new Estimate(
+                EstimateKt.ESTIMATE_MILLIS_UNKNOWN,
+                false /* isBasedOnUsage */,
+                EstimateKt.AVERAGE_TIME_TO_DISCHARGE_UNKNOWN);
     }
 
     @Override
     public long getLowWarningThreshold() {
         updateFlags();
-        return mParser.getLong("low_threshold", THREE_HOURS);
+        return mParser.getLong("low_threshold", Duration.ofHours(3L).toMillis());
     }
 
     @Override
     public long getSevereWarningThreshold() {
         updateFlags();
-        return mParser.getLong("severe_threshold", HOUR);
+        return mParser.getLong("severe_threshold", Duration.ofHours(1L).toMillis());
     }
 
     @Override
@@ -113,11 +129,12 @@ public final class EnhancedEstimatesImpl implements EnhancedEstimates {
     }
 
     private void updateFlags() {
-        final String string = mGlobalSettings.getString("hybrid_sysui_battery_warning_flags");
         try {
-            mParser.setString(string);
-        } catch (IllegalArgumentException ex) {
-            Log.e(TAG, "Bad hybrid sysui warning flags");
+            mParser.setString(
+                    Settings.Global.getString(
+                            mContext.getContentResolver(), "hybrid_sysui_battery_warning_flags"));
+        } catch (IllegalArgumentException unused) {
+            Log.e("EnhancedEstimates", "Bad hybrid sysui warning flags");
         }
     }
 }
