@@ -38,6 +38,12 @@ private const val TAG = "SeekBarObserver"
  */
 open class SeekBarObserver(private val holder: MediaViewHolder) :
     Observer<SeekBarViewModel.Progress> {
+    private var alwaysOnTime = false
+    private var latestProgress: SeekBarViewModel.Progress? = null
+
+    constructor(holder: MediaViewHolder, alwaysOnTime: Boolean) : this(holder) {
+        this.alwaysOnTime = alwaysOnTime
+    }
 
     companion object {
         @JvmStatic val RESET_ANIMATION_DURATION_MS: Int = 750
@@ -96,6 +102,7 @@ open class SeekBarObserver(private val holder: MediaViewHolder) :
     /** Updates seek bar views when the data model changes. */
     @UiThread
     override fun onChanged(data: SeekBarViewModel.Progress) {
+        latestProgress = data
         val progressDrawable = holder.seekBar.progressDrawable as? SquigglyProgress
         if (!data.enabled) {
             if (holder.seekBar.maxHeight != seekBarDisabledHeight) {
@@ -107,8 +114,7 @@ open class SeekBarObserver(private val holder: MediaViewHolder) :
             holder.seekBar.thumb.alpha = 0
             holder.seekBar.progress = 0
             holder.seekBar.contentDescription = ""
-            holder.scrubbingElapsedTimeView.text = ""
-            holder.scrubbingTotalTimeView.text = ""
+            updateScrubbingTimeViews(data)
             return
         }
 
@@ -127,9 +133,6 @@ open class SeekBarObserver(private val holder: MediaViewHolder) :
         }
 
         holder.seekBar.setMax(data.duration)
-        if (data.scrubbing) {
-            holder.scrubbingTotalTimeView.text = formatTimeLabel(data.duration)
-        }
 
         data.elapsedTime?.let {
             if (!data.scrubbing && !(seekBarResetAnimator?.isRunning ?: false)) {
@@ -145,11 +148,8 @@ open class SeekBarObserver(private val holder: MediaViewHolder) :
                     holder.seekBar.progress = it
                 }
             }
-
-            if (data.scrubbing) {
-                holder.scrubbingElapsedTimeView.text = formatTimeLabel(it)
-            }
         }
+        updateScrubbingTimeViews(data)
     }
 
     /** Returns a time string suitable for display, e.g. "12:34" */
@@ -191,5 +191,28 @@ open class SeekBarObserver(private val holder: MediaViewHolder) :
         val rightPadding = holder.seekBar.paddingRight
         val bottomPadding = holder.seekBar.paddingBottom
         holder.seekBar.setPadding(leftPadding, padding, rightPadding, bottomPadding)
+    }
+
+    @UiThread
+    fun setAlwaysOnTime(enabled: Boolean) {
+        alwaysOnTime = enabled
+        latestProgress?.let(::updateScrubbingTimeViews)
+    }
+
+    private fun updateScrubbingTimeViews(data: SeekBarViewModel.Progress) {
+        if (!data.enabled) {
+            holder.scrubbingElapsedTimeView.text = ""
+            holder.scrubbingTotalTimeView.text = ""
+            return
+        }
+
+        if (data.scrubbing || alwaysOnTime) {
+            holder.scrubbingTotalTimeView.text = formatTimeLabel(data.duration)
+            holder.scrubbingElapsedTimeView.text =
+                data.elapsedTime?.let(::formatTimeLabel) ?: ""
+        } else {
+            holder.scrubbingElapsedTimeView.text = ""
+            holder.scrubbingTotalTimeView.text = ""
+        }
     }
 }
