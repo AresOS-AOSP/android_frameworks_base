@@ -336,6 +336,10 @@ public class SecureSettingsValidators {
         VALIDATORS.put(Secure.PEOPLE_STRIP, BOOLEAN_VALIDATOR);
         VALIDATORS.put(Secure.MEDIA_CONTROLS_RESUME, BOOLEAN_VALIDATOR);
         VALIDATORS.put(Secure.MEDIA_CONTROLS_LOCK_SCREEN, BOOLEAN_VALIDATOR);
+        VALIDATORS.put(Secure.MEDIA_CONTROLS_ALWAYS_SHOW_TIME, BOOLEAN_VALIDATOR);
+        VALIDATORS.put(Secure.MEDIA_CONTROLS_TIME_AS_NEXT, BOOLEAN_VALIDATOR);
+        VALIDATORS.put(Secure.MEDIA_CONTROLS_ACTIONS,
+                new DiscreteValueValidator(new String[] {"0", "1", "2", "3", "4", "5"}));
         VALIDATORS.put(Secure.ACCESSIBILITY_MAGNIFICATION_MODE,
                 new InclusiveIntegerRangeValidator(
                         Secure.ACCESSIBILITY_MAGNIFICATION_MODE_FULLSCREEN,

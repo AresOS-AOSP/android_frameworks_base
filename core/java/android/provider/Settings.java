@@ -13781,6 +13781,25 @@ public final class Settings {
         public static final String MEDIA_CONTROLS_LOCK_SCREEN = "media_controls_lock_screen";
 
         /**
+         * Whether to always show time labels on media controls.
+         * @hide
+         */
+        public static final String MEDIA_CONTROLS_ALWAYS_SHOW_TIME =
+                "media_controls_always_show_time";
+
+        /**
+         * Whether to use media control time labels as previous and next buttons.
+         * @hide
+         */
+        public static final String MEDIA_CONTROLS_TIME_AS_NEXT = "media_controls_time_as_next";
+
+        /**
+         * Maximum number of custom actions shown on media controls.
+         * @hide
+         */
+        public static final String MEDIA_CONTROLS_ACTIONS = "media_controls_actions";
+
+        /**
          * Whether to enable camera extensions software fallback.
          * @hide
          */
