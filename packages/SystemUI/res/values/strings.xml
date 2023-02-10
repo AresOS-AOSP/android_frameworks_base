@@ -224,6 +224,7 @@
     <string name="screenshot_saving_private_profile">Saving screenshot to private</string>
     <!-- Notification title displayed when a screenshot is saved to the Gallery. [CHAR LIMIT=50] -->
     <string name="screenshot_saved_title">Screenshot saved</string>
+    <string name="screenshot_saved_notification_text">Tap to view</string>
     <!-- Notification title displayed when we fail to take a screenshot. [CHAR LIMIT=50] -->
     <string name="screenshot_failed_title">Couldn\'t save screenshot</string>
     <!-- Appended to the notification content when a screenshot failure happens on an external display. [CHAR LIMIT=50] -->

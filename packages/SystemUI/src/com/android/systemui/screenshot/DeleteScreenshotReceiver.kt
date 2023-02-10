@@ -17,10 +17,10 @@
 
 package com.android.systemui.screenshot
 
+import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import com.android.systemui.dagger.qualifiers.Background
 import java.util.concurrent.Executor
 import javax.inject.Inject
@@ -39,6 +39,19 @@ class DeleteScreenshotReceiver @Inject constructor(
         backgroundExecutor.execute {
             context.contentResolver.delete(uri, null, null)
         }
-
+        val notificationId = uri.hashCode()
+        val notificationManager = context.getSystemService(NotificationManager::class.java)
+        val hasOtherSavedScreenshotNotifications =
+            notificationManager?.activeNotifications.orEmpty().any {
+                it.tag == ScreenshotNotificationsController.POST_SCREENSHOT_NOTIFICATION_TAG &&
+                    it.id != notificationId
+            }
+        notificationManager?.cancel(
+            ScreenshotNotificationsController.POST_SCREENSHOT_NOTIFICATION_TAG,
+            notificationId,
+        )
+        if (!hasOtherSavedScreenshotNotifications) {
+            context.closeSystemDialogs()
+        }
     }
 }
