@@ -20,15 +20,28 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.admin.DevicePolicyManager
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.drawable.Icon
 import android.os.UserHandle
+import android.util.Log
+import android.util.Size
 import android.view.Display
 import com.android.internal.R
 import com.android.internal.messages.nano.SystemMessageProto
+import com.android.systemui.dagger.qualifiers.Application
+import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.statusbar.notification.NotificationUtils
 import com.android.systemui.util.NotificationChannels
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlin.math.min
 
 /** Convenience class to handle showing and hiding notifications while taking a screenshot. */
 class ScreenshotNotificationsController
@@ -38,7 +51,31 @@ internal constructor(
     private val context: Context,
     private val notificationManager: NotificationManager,
     private val devicePolicyManager: DevicePolicyManager,
+    private val actionIntentCreator: ActionIntentCreator,
+    @Application private val applicationScope: CoroutineScope,
+    @Background private val backgroundDispatcher: CoroutineDispatcher,
 ) {
+    constructor(
+        displayId: Int,
+        context: Context,
+        notificationManager: NotificationManager,
+        devicePolicyManager: DevicePolicyManager,
+    ) : this(
+        displayId = displayId,
+        context = context,
+        notificationManager = notificationManager,
+        devicePolicyManager = devicePolicyManager,
+        actionIntentCreator =
+            ActionIntentCreator(
+                context,
+                context.packageManager,
+                CoroutineScope(SupervisorJob() + Dispatchers.IO),
+                Dispatchers.IO,
+            ),
+        applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+        backgroundDispatcher = Dispatchers.IO,
+    )
+
     private val res = context.resources
 
     /**
@@ -97,6 +134,86 @@ internal constructor(
         notificationManager.notify(id, notification)
     }
 
+    fun showSavedScreenshotNotification(savedResult: ScreenshotSavedResult) {
+        applicationScope.launch {
+            try {
+                postSavedScreenshotNotification(savedResult)
+            } catch (t: Throwable) {
+                Log.w(
+                    LOG_TAG,
+                    "Failed to post saved screenshot notification for ${savedResult.uri}",
+                    t,
+                )
+            }
+        }
+    }
+
+    private suspend fun postSavedScreenshotNotification(savedResult: ScreenshotSavedResult) {
+        val notificationId = savedResult.uri.hashCode()
+        val contentIntent =
+            try {
+                createActivityPendingIntent(
+                    requestCode = notificationId,
+                    intent = actionIntentCreator.createView(savedResult.uri),
+                    user = savedResult.user,
+                )
+            } catch (_: Throwable) {
+                null
+            }
+        val shareIntent =
+            createActivityPendingIntent(
+                requestCode = notificationId + 1,
+                intent =
+                    actionIntentCreator.createShareWithSubject(savedResult.uri, savedResult.subject),
+                user = savedResult.user,
+            )
+        val builder =
+            Notification.Builder(context, NotificationChannels.SCREENSHOTS_HEADSUP)
+                .setTicker(res.getString(com.android.systemui.res.R.string.screenshot_saved_title))
+                .setContentTitle(
+                    res.getString(com.android.systemui.res.R.string.screenshot_saved_title)
+                )
+                .setContentText(
+                    res.getString(
+                        com.android.systemui.res.R.string.screenshot_saved_notification_text
+                    )
+                )
+                .setSmallIcon(com.android.systemui.res.R.drawable.screenshot_image)
+                .setWhen(savedResult.imageTime)
+                .setShowWhen(true)
+                .setAutoCancel(true)
+                .setOnlyAlertOnce(true)
+                .setSilent(true)
+                .setGroup(POST_SCREENSHOT_NOTIFICATION_GROUP_KEY)
+                .setColor(context.getColor(R.color.system_notification_accent_color))
+                .addAction(
+                    Notification.Action.Builder(
+                            Icon.createWithResource(
+                                context,
+                                com.android.systemui.res.R.drawable.ic_screenshot_share,
+                            ),
+                            res.getText(com.android.systemui.res.R.string.screenshot_share_label),
+                            shareIntent,
+                        )
+                        .build()
+                )
+                .addAction(
+                    Notification.Action.Builder(
+                            Icon.createWithResource(
+                                context,
+                                com.android.systemui.res.R.drawable.ic_screenshot_delete,
+                            ),
+                            res.getText(R.string.delete),
+                            actionIntentCreator.createDelete(savedResult.uri),
+                        )
+                        .build()
+                )
+        contentIntent?.let(builder::setContentIntent)
+        loadNotificationPreview(savedResult.uri)?.let { preview -> builder.applyPreview(preview) }
+        NotificationUtils.overrideNotificationAppName(context, builder, true)
+        notificationManager.notify(POST_SCREENSHOT_NOTIFICATION_TAG, notificationId, builder.build())
+    }
+
     private val externalDisplayString: String
         get() =
             res.getString(
@@ -107,5 +224,51 @@ internal constructor(
     @AssistedFactory
     fun interface Factory {
         fun create(displayId: Int): ScreenshotNotificationsController
+    }
+
+    private fun createActivityPendingIntent(
+        requestCode: Int,
+        intent: android.content.Intent,
+        user: UserHandle,
+    ): PendingIntent {
+        return PendingIntent.getActivityAsUser(
+            context,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            null,
+            user,
+        )
+    }
+
+    private suspend fun loadNotificationPreview(uri: android.net.Uri): Bitmap? =
+        withContext(backgroundDispatcher) {
+            runCatching {
+                context.contentResolver.loadThumbnail(
+                    uri,
+                    getNotificationPreviewSize(),
+                    null,
+                )
+            }.getOrNull()
+        }
+
+    private fun getNotificationPreviewSize(): Size {
+        val displayMetrics = res.displayMetrics
+        return Size(
+            min(displayMetrics.widthPixels, MAX_NOTIFICATION_PREVIEW_EDGE_PX),
+            min(displayMetrics.heightPixels, MAX_NOTIFICATION_PREVIEW_EDGE_PX),
+        )
+    }
+
+    private fun Notification.Builder.applyPreview(preview: Bitmap) {
+        setLargeIcon(preview)
+        setStyle(Notification.BigPictureStyle().bigPicture(preview).showBigPictureWhenCollapsed(true))
+    }
+
+    companion object {
+        const val POST_SCREENSHOT_NOTIFICATION_TAG = "ScreenshotSavedNotification"
+        private const val LOG_TAG = "ScreenshotNotifications"
+        private const val POST_SCREENSHOT_NOTIFICATION_GROUP_KEY = "saved_screenshots"
+        private const val MAX_NOTIFICATION_PREVIEW_EDGE_PX = 2048
     }
 }
