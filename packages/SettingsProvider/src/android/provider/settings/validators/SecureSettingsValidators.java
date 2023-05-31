@@ -521,6 +521,11 @@ public class SecureSettingsValidators {
                 new InclusiveIntegerRangeValidator(0, 1));
         VALIDATORS.put(Secure.IDENTITY_CHECK_NOTIFICATION_VIEW_DETAILS_CLICKED,
                 new InclusiveIntegerRangeValidator(0, 1));
+<<<<<<< HEAD
         VALIDATORS.put(Secure.HIDE_APPLIST, ANY_STRING_VALIDATOR);
+=======
+        // Evolution X additions
+        VALIDATORS.put(Secure.HIDE_DEVELOPER_STATUS, ANY_STRING_VALIDATOR);
+>>>>>>> cc98ff4 (base: Hide ADB and developer setting enable status [1/2])
     }
 }
