@@ -14752,13 +14752,6 @@ public final class Settings {
                 "otp_redaction_lock_time";
 
         /**
-         * Control whether FLAG_SECURE is ignored for all windows.
-         * @hide
-         */
-        @Readable
-        public static final String WINDOW_IGNORE_SECURE = "window_ignore_secure";
-
-        /**
          * These entries are considered common between the personal and the managed profile,
          * since the managed profile doesn't get to change them.
          */
@@ -21415,6 +21408,13 @@ public final class Settings {
          * @hide
          */
         public static final String NO_STORAGE_RESTRICT = "no_storage_restrict";
+
+        /**
+         * Control whether FLAG_SECURE is ignored for all windows.
+         * @hide
+         */
+        @Readable
+        public static final String WINDOW_IGNORE_SECURE = "window_ignore_secure";
 
         /**
          * Setting indicating whether Low Power Standby is enabled, if supported.
