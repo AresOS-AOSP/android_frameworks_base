@@ -28,4 +28,8 @@
 
     <!-- GameSpace -->
     <string name="gamespace_new_game_added"><xliff:g id="name" example="MyApp">%s</xliff:g> added to GameSpace</string>
+
+    <!-- System Reboot -->
+    <string name="system_restart_title">System restart required</string>
+    <string name="system_restart_message">For all the changes to take effect, a system restart is required. Perform system restart now?</string>
 </resources>
