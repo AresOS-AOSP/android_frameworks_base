@@ -14782,6 +14782,12 @@ public final class Settings {
                 "otp_redaction_lock_time";
 
         /**
+         * Boolean value whether activate keyguard affordance shortcuts on short press
+         * @hide
+         */
+        public static final String KEYGUARD_AFFORDANCE_SINGLE_TAP = "keyguard_affordance_single_tap";
+
+        /**
          * These entries are considered common between the personal and the managed profile,
          * since the managed profile doesn't get to change them.
          */
