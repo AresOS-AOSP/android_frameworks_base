@@ -13825,6 +13825,13 @@ public final class Settings {
         public static final String PI_NETFLIX_SPOOF = "pi_netflix_spoof";
 
         /**
+         * Control which apps to hide from other user apps.
+         * @hide
+         */
+        @Readable
+        public static final String HIDE_APPLIST = "hide_applist";
+
+        /**
          * Whether to show privacy indicator for location
          * @hide
          */
