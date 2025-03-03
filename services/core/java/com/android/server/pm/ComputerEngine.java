@@ -187,6 +187,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+import com.android.internal.util.crdroid.HideAppListUtils;
+
 /**
  * This class contains the implementation of the Computer functions.  It
  * is entirely self-contained - it has no implicit access to
@@ -1142,9 +1144,13 @@ public class ComputerEngine implements Computer {
 
     public final ApplicationInfo getApplicationInfo(String packageName,
             @PackageManager.ApplicationInfoFlagsBits long flags, int userId) {
+        final int callingUid = Binder.getCallingUid();
         if (isAppDetached(packageName)) return null;
-        if (shouldHideFromCaller(Binder.getCallingUid(), packageName)) return null;
-        return getApplicationInfoInternal(packageName, flags, Binder.getCallingUid(), userId);
+        if (shouldHideFromCaller(callingUid, packageName)
+                || shouldHideAppListFromCaller(callingUid, packageName)) {
+            return null;
+        }
+        return getApplicationInfoInternal(packageName, flags, callingUid, userId);
     }
 
     /**
@@ -1158,7 +1164,10 @@ public class ComputerEngine implements Computer {
             int filterCallingUid, int userId) {
         if (!mUserManager.exists(userId)) return null;
         if (isAppDetached(packageName)) return null;
-        if (shouldHideFromCaller(filterCallingUid, packageName)) return null;
+        if (shouldHideFromCaller(filterCallingUid, packageName)
+                || shouldHideAppListFromCaller(filterCallingUid, packageName)) {
+            return null;
+        }
         flags = updateFlagsForApplication(flags, userId);
 
         if (!isRecentsAccessingChildProfiles(Binder.getCallingUid(), userId)) {
@@ -1170,17 +1179,73 @@ public class ComputerEngine implements Computer {
         return getApplicationInfoInternalBody(packageName, flags, filterCallingUid, userId);
     }
 
+    private boolean canHideApp(int callingUid, String packageName) {
+        if (!isBootCompleted() || mContext == null || mContext.getPackageManager() == null) {
+            return false;
+        }
+
+        String callingPackage = mContext.getPackageManager().getNameForUid(callingUid);
+
+        if (callingPackage == null || TextUtils.isEmpty(callingPackage)) {
+            return false;
+        }
+
+        // app can be always hidden if calling package is play store
+        boolean isFinsky = callingPackage.contains("com.android.vending");
+
+        if (isFinsky) return true;
+
+        if (packageName == null || TextUtils.isEmpty(packageName)) {
+            return false;
+        }
+
+        // the calling package is itself, no need to hide
+        if (callingPackage.contains(packageName)) return false;
+
+        // we only want to hide these apps from playstore
+        // to avoid these apps from being updated, so abort if
+        // calling package is not finsky
+        if (packageName.contains("youtube")
+            || packageName.contains("microg")
+            || packageName.contains("revanced")
+            || packageName.contains("gms")) {
+            return false;
+        }
+
+        // this is for banking apps, but we need to make sure first that
+        // we arent hiding app infos from sandbox/system processes
+        return !isCallerSystem(callingUid)
+            && !Process.isIsolated(callingUid)
+            && !Process.isSdkSandboxUid(callingUid);
+    }
+
+    private boolean shouldHideAppListFromCaller(int callingUid, String packageName) {
+        return canHideApp(callingUid, packageName)
+                && HideAppListUtils.shouldHideAppList(mContext, packageName);
+    }
+
+    private Set<String> getHiddenAppsForCaller(int callingUid, Context context) {
+        if (context == null || !canHideApp(callingUid, null)) {
+            return Collections.emptySet();
+        }
+        return HideAppListUtils.getApps(context);
+    }
+
     public ParceledListSlice<PackageInfo> recreatePackageList(
             int callingUid, Context context, int userId, ParceledListSlice<PackageInfo> list) {
         List<PackageInfo> appList = new ArrayList<>(list.getList());
-        appList.removeIf(info -> isAppDetached(info.packageName));
+        final Set<String> hiddenApps = getHiddenAppsForCaller(callingUid, context);
+        appList.removeIf(info -> isAppDetached(info.packageName)
+                || hiddenApps.contains(info.packageName));
         return new ParceledListSlice<>(appList);
     }
 
     public List<ApplicationInfo> recreateApplicationList(
             int callingUid, Context context, int userId, List<ApplicationInfo> list) {
         List<ApplicationInfo> appList = new ArrayList<>(list);
-        appList.removeIf(info -> isAppDetached(info.packageName));
+        final Set<String> hiddenApps = getHiddenAppsForCaller(callingUid, context);
+        appList.removeIf(info -> isAppDetached(info.packageName)
+                || hiddenApps.contains(info.packageName));
         return appList;
     }
 
@@ -1866,10 +1931,14 @@ public class ComputerEngine implements Computer {
 
     public final PackageInfo getPackageInfo(String packageName,
             @PackageManager.PackageInfoFlagsBits long flags, int userId) {
+        final int callingUid = Binder.getCallingUid();
         if (isAppDetached(packageName)) return null;
-        if (shouldHideFromCaller(Binder.getCallingUid(), packageName)) return null;
+        if (shouldHideFromCaller(callingUid, packageName)
+                || shouldHideAppListFromCaller(callingUid, packageName)) {
+            return null;
+        }
         return getPackageInfoInternal(packageName, PackageManager.VERSION_CODE_HIGHEST,
-                flags, Binder.getCallingUid(), userId);
+                flags, callingUid, userId);
     }
 
     /**
@@ -2808,24 +2877,6 @@ public class ComputerEngine implements Computer {
         return isCallerSameApp(home, callingUid);
     }
 
-    /**
-     * Returns whether caller is system, root, shell, or updated system app.
-     */
-    private final boolean isCallerSystem(int callingUid) {
-        if (isSystemOrRootOrShell(callingUid)) {
-            return true;
-        }
-        final SettingBase callingPs = mSettings.getSettingBase(UserHandle.getAppId(callingUid));
-        if (callingPs == null) return false;
-        final int callingFlags = callingPs.getFlags();
-        if (((callingFlags & ApplicationInfo.FLAG_SYSTEM) == ApplicationInfo.FLAG_SYSTEM)
-                || ((callingFlags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)
-                        == ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) {
-            return true;
-        }
-        return false;
-    }
-
     private final boolean shouldFilterApplicationCustom(
             @Nullable PackageStateInternal ps, int callingUid, int userId) {
         if (!isBootCompleted()) return false;
@@ -2843,8 +2894,7 @@ public class ComputerEngine implements Computer {
             return false;
         }
         // if the target is included in Settings.Secure.HIDE_APPLIST, do filter
-        if (com.android.internal.util.crdroid.HideAppListUtils.shouldHideAppList(
-                mContext, packageName)) {
+        if (shouldHideAppListFromCaller(callingUid, packageName)) {
             return true;
         }
 
