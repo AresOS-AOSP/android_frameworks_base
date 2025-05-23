@@ -53,7 +53,6 @@ import android.content.IntentFilter;
 import android.content.res.Configuration;
 import android.graphics.Point;
 import android.hardware.devicestate.DeviceStateManager;
-import android.hardware.display.AmbientDisplayConfiguration;
 import android.metrics.LogMaker;
 import android.net.Uri;
 import android.os.Binder;
@@ -904,7 +903,7 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces,
         mMediaViewController = mediaViewController;
         mPulseViewController = pulseViewController;
         mEdgeLightViewController = edgeLightViewController;
-        ScreenAnimationController.INSTANCE().init(new AmbientDisplayConfiguration(mContext));
+        ScreenAnimationController.INSTANCE().init(mContext);
     }
 
     private void initBubbles(Bubbles bubbles) {
