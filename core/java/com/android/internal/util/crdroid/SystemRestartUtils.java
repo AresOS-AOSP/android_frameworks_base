@@ -36,7 +36,7 @@ import java.util.List;
 
 public class SystemRestartUtils {
 
-    private static final int RESTART_TIMEOUT = 1000;
+    private static final int RESTART_TIMEOUT = 400;
 
     public static void showSystemRestartDialog(Context context) {
         new AlertDialog.Builder(context)
