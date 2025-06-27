@@ -2819,6 +2819,10 @@ public class NotificationStackScrollLayout
                 || (topOverScroll > mMinTopOverScrollToEscape && initialVelocity > 0));
     }
 
+    public void updateTopPadding(float qsHeight, boolean animate) {
+        updateTopPadding(qsHeight, animate, false);
+    }
+
     /**
      * Updates the top padding of the notifications, taking {@link #getIntrinsicPadding()} into
      * account.
@@ -2826,7 +2830,7 @@ public class NotificationStackScrollLayout
      * @param qsHeight the top padding imposed by the quick settings panel
      * @param animate  whether to animate the change
      */
-    public void updateTopPadding(float qsHeight, boolean animate) {
+    public void updateTopPadding(float qsHeight, boolean animate, boolean forced) {
         SceneContainerFlag.assertInLegacyMode();
         int topPadding = (int) qsHeight;
         int minStackHeight = getLayoutMinHeightInternal();
@@ -2835,7 +2839,7 @@ public class NotificationStackScrollLayout
         } else {
             mTopPaddingOverflow = 0;
         }
-        if (mAmbientState.getTopPadding() != topPadding) {
+        if (mAmbientState.getTopPadding() != topPadding || forced) {
             mAmbientState.setTopPadding(topPadding);
             onTopPaddingChanged(/* animate = */ animate && !mKeyguardBypassEnabled);
         }
@@ -6089,7 +6093,7 @@ public class NotificationStackScrollLayout
     private void updateBlurEffect() {
         if (mBlurRadius > 0) {
             mBlurEffect =
-                    RenderEffect.createBlurEffect(mBlurRadius, mBlurRadius, Shader.TileMode.CLAMP);
+                    RenderEffect.createBlurEffect(mBlurRadius, mBlurRadius, Shader.TileMode.MIRROR);
             spewLog("Setting up blur RenderEffect for NotificationStackScrollLayout");
         } else {
             spewLog("Clearing the blur RenderEffect setup for NotificationStackScrollLayout");

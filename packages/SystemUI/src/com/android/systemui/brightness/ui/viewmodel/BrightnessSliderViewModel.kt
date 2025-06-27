@@ -21,7 +21,6 @@ import androidx.annotation.DrawableRes
 import androidx.annotation.FloatRange
 import androidx.annotation.StringRes
 import androidx.compose.runtime.getValue
-import androidx.core.content.res.ResourcesCompat
 import com.android.systemui.brightness.domain.interactor.BrightnessPolicyEnforcementInteractor
 import com.android.systemui.brightness.domain.interactor.ScreenBrightnessInteractor
 import com.android.systemui.brightness.shared.model.GammaBrightness
@@ -29,6 +28,7 @@ import com.android.systemui.classifier.Classifier
 import com.android.systemui.classifier.domain.interactor.FalsingInteractor
 import com.android.systemui.common.shared.model.Icon
 import com.android.systemui.common.shared.model.asIcon
+import com.android.systemui.graphics.ImageLoader
 import com.android.systemui.haptics.slider.compose.ui.SliderHapticsViewModel
 import com.android.systemui.lifecycle.ExclusiveActivatable
 import com.android.systemui.lifecycle.Hydrator
@@ -59,6 +59,7 @@ constructor(
     private val falsingInteractor: FalsingInteractor,
     @Assisted private val supportsMirroring: Boolean,
     private val brightnessWarningToast: BrightnessWarningToast,
+    private val imageLoader: ImageLoader,
 ) : ExclusiveActivatable() {
 
     private val hydrator = Hydrator("BrightnessSliderViewModel.hydrator")
@@ -69,6 +70,11 @@ constructor(
             initialValue,
             screenBrightnessInteractor.gammaBrightness,
         )
+
+    val autoMode by hydrator.hydratedStateOf(
+        traceName = "autoMode",
+        source = screenBrightnessInteractor.isAutoBrightnessEnabledFlow
+    )
 
     val maxBrightness = screenBrightnessInteractor.maxGammaBrightness
     val minBrightness = screenBrightnessInteractor.minGammaBrightness
@@ -93,9 +99,7 @@ constructor(
     }
 
     suspend fun loadImage(@DrawableRes resId: Int, context: Context): Icon.Loaded {
-        val d = ResourcesCompat.getDrawable(context.resources, resId, context.theme)
-            ?: error("Drawable $resId not found")
-        return d.asIcon(null, resId)
+        return imageLoader.loadDrawableRes(resId, context)!!.asIcon(null, resId)
     }
 
     /**
@@ -106,6 +110,10 @@ constructor(
             is Drag.Dragging -> screenBrightnessInteractor.setTemporaryBrightness(drag.brightness)
             is Drag.Stopped -> screenBrightnessInteractor.setBrightness(drag.brightness)
         }
+    }
+
+    fun onIconClick() {
+        screenBrightnessInteractor.toggleBrightnessMode()
     }
 
     fun setIsDragging(dragging: Boolean) {
@@ -132,11 +140,13 @@ constructor(
                 brightnessLow = R.drawable.ic_brightness_low,
                 brightnessMid = R.drawable.ic_brightness_medium,
                 brightnessHigh = R.drawable.ic_brightness_full,
+                brightnessAuto = R.drawable.ic_brightness_auto,
             )
 
         @DrawableRes
-        fun getIconForPercentage(@FloatRange(0.0, 100.0) percentage: Float): Int {
+        fun getIconForPercentage(@FloatRange(0.0, 100.0) percentage: Float, autoMode: Boolean): Int {
             return when {
+                autoMode -> icons.brightnessAuto
                 percentage <= 20f -> icons.brightnessLow
                 percentage >= 80f -> icons.brightnessHigh
                 else -> icons.brightnessMid
@@ -160,4 +170,5 @@ private data class BrightnessIcons(
     @DrawableRes val brightnessLow: Int,
     @DrawableRes val brightnessMid: Int,
     @DrawableRes val brightnessHigh: Int,
+    @DrawableRes val brightnessAuto: Int,
 )
