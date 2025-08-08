@@ -34,9 +34,12 @@ import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.app.Fragment;
 import android.content.res.Resources;
+import android.database.ContentObserver;
 import android.graphics.Insets;
 import android.graphics.Rect;
 import android.graphics.Region;
+import android.os.Handler;
+import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.IndentingPrintWriter;
 import android.util.Log;
@@ -105,6 +108,7 @@ import com.android.systemui.statusbar.policy.CastController;
 import com.android.systemui.statusbar.policy.KeyguardStateController;
 import com.android.systemui.statusbar.policy.SplitShadeStateController;
 import com.android.systemui.tuner.TunerService;
+import com.android.systemui.user.domain.interactor.SelectedUserInteractor;
 import com.android.systemui.util.LargeScreenUtils;
 import com.android.systemui.util.ScrimUtils;
 import com.android.systemui.util.kotlin.JavaAdapter;
@@ -246,6 +250,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
     private int mPanelTopMargin;
     private int mExpandedMediaHeight;
     private int mQQsMinHeight;
+    private int mQQSBrightnessSliderHeight;
     /**
      * Determines if QS should be already expanded when expanding shade.
      * Used for split shade, two finger gesture as well as accessibility shortcut to QS.
@@ -300,6 +305,9 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
     private long mNotificationBoundsAnimationDuration;
 
     private int mOneFingerQuickSettingsIntercept;
+    private final ContentObserver mOneFingerQuickSettingsInterceptObserver;
+    
+    private boolean mQQSBrightnessEnabled = true;
 
     private final Region mInterceptRegion = new Region();
     /** The end bounds of a clipping animation. */
@@ -362,7 +370,8 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
             Lazy<CommunalTransitionViewModel> communalTransitionViewModelLazy,
             Lazy<LargeScreenHeaderHelper> largeScreenHeaderHelperLazy,
             WindowManagerProvider windowManagerProvider,
-            TunerService tunerService
+            TunerService tunerService,
+            SelectedUserInteractor selectedUserInteractor
     ) {
         SceneContainerFlag.assertInLegacyMode();
         mPanelViewControllerLazy = panelViewControllerLazy;
@@ -413,6 +422,16 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         mTunerService = tunerService;
 
         mLockscreenShadeTransitionController.addCallback(new LockscreenShadeTransitionCallback());
+
+        mOneFingerQuickSettingsInterceptObserver = new ContentObserver(null) {
+            @Override
+            public void onChange(boolean selfChange) {
+                mQQSBrightnessEnabled = Settings.Secure.getIntForUser(
+                        mPanelView.getContext().getContentResolver(),
+                        "qs_brightness_slider_enabled", 2,
+                        selectedUserInteractor.getSelectedUserId()) == 2;
+            }
+        };
 
         dumpManager.registerDumpable(this);
 
@@ -483,6 +502,10 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         mQQsMinHeight =
                 mResources.getDimensionPixelSize(
                         R.dimen.qqs_min_height);
+
+        mQQSBrightnessSliderHeight =
+                mResources.getDimensionPixelSize(
+                        R.dimen.qs_brightness_slider_height);
 
         mEnableClipping = mResources.getBoolean(R.bool.qs_enable_clipping);
         updateGestureInsetsCache();
@@ -2260,11 +2283,12 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
                     if (QSComposeFragment.isEnabled() && mPreviouslyVisibleMedia && !visible) {
                         updateHeightsOnShadeLayoutChange();
                         mPanelViewControllerLazy.get().positionClockAndNotifications();
+                        int minQQSHeight = mQQsMinHeight - (mQQSBrightnessEnabled ? 0 : mQQSBrightnessSliderHeight);
                         // the current calculation is not reliable at all, there were times 
                         // that it is still including the media height which causes the stack scroller to not react
                         // to the top padding changes
                         int calculatedTopPadding = mPanelTopMargin + getHeaderHeight() - mExpandedMediaHeight;
-                        int topPadding = Math.max(calculatedTopPadding, mQQsMinHeight);
+                        int topPadding = Math.max(calculatedTopPadding, minQQSHeight);
                         // update notif shade intractor
                         mPanelViewControllerLazy.get().requestScrollerTopPaddingUpdate();
                         // do not wait for pending top padding changes. force update the notif stack srolllayout
@@ -2293,6 +2317,12 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
             mTunerService.addTunable(this, STATUS_BAR_QUICK_QS_PULLDOWN);
             mTunerService.addTunable(this, NOTIFICATION_ROW_TRANSPARENCY);
             mTunerService.addTunable(this, NOTIFICATION_ROW_TRANSPARENCY_LOCKSCREEN);
+            mPanelView.getContext().getContentResolver().registerContentObserver(
+                    Settings.Secure.getUriFor(
+                            "qs_brightness_slider_enabled"),
+                    false, mOneFingerQuickSettingsInterceptObserver,
+                    UserHandle.USER_ALL);
+            mOneFingerQuickSettingsInterceptObserver.onChange(true);               
             updateExpansion();
         }
 
@@ -2300,6 +2330,8 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         @Override
         public void onFragmentViewDestroyed(String tag, Fragment fragment) {
             mTunerService.removeTunable(this);
+            mPanelView.getContext().getContentResolver().unregisterContentObserver(
+                    mOneFingerQuickSettingsInterceptObserver);                    
             // Manual handling of fragment lifecycle is only required because this bridges
             // non-fragment and fragment code. Once we are using a fragment for the notification
             // panel, mQs will not need to be null cause it will be tied to the same lifecycle.
