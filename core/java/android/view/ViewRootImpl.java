@@ -298,6 +298,7 @@ import com.android.internal.policy.PhoneFallbackEventHandler;
 import com.android.internal.protolog.ProtoLog;
 import com.android.internal.util.FastPrintWriter;
 import com.android.internal.util.ViewCacheManager;
+import com.android.internal.util.ScrollOptimizer;
 import com.android.internal.view.BaseSurfaceHolder;
 import com.android.internal.view.RootViewSurfaceTaker;
 import com.android.internal.view.SurfaceCallbackHelper;
@@ -2874,6 +2875,7 @@ public final class ViewRootImpl implements ViewParent,
             mBlastBufferQueue.destroy();
         }
         mBlastBufferQueue = new BLASTBufferQueue(mTag, true /* updateDestinationFrame */);
+        ScrollOptimizer.setBLASTBufferQueue(mBlastBufferQueue);
         // If we create and destroy BBQ without recreating the SurfaceControl, we can end up
         // queuing buffers on multiple apply tokens causing out of order buffer submissions. We
         // fix this by setting the same apply token on all BBQs created by this VRI.
@@ -10710,6 +10712,7 @@ public final class ViewRootImpl implements ViewParent,
     }
 
     void doProcessInputEvents() {
+        ScrollOptimizer.setBLASTBufferQueue(mBlastBufferQueue);
         // Deliver all pending input events in the queue.
         while (mPendingInputEventHead != null) {
             QueuedInputEvent q = mPendingInputEventHead;
@@ -10724,6 +10727,10 @@ public final class ViewRootImpl implements ViewParent,
                     mPendingInputEventCount);
 
             mViewFrameInfo.setInputEvent(mInputEventAssigner.processEvent(q.mEvent));
+            
+            if (q.mEvent instanceof MotionEvent) {
+                ScrollOptimizer.setMotionType(((MotionEvent)q.mEvent).getActionMasked());
+            }
 
             deliverInputEvent(q);
         }
