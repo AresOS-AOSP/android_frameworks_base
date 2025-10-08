@@ -641,7 +641,7 @@ public final class NetworkRegistrationInfo implements Parcelable {
      */
     public void setAccessNetworkTechnology(@NetworkType int tech) {
         // HACK: Force LTE Carrier Aggregation
-        if (SystemProperties.getBoolean("persist.sys.radio.force_lte_ca", false)
+        if (SystemProperties.getBoolean("persist.sys.radio.force_lte_ca", true)
                 && tech == TelephonyManager.NETWORK_TYPE_LTE) {
             mIsUsingCarrierAggregation = true;
         }
