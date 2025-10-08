@@ -163,9 +163,6 @@ constructor(
         internal val QS_SHOW_BATTERY_PERCENT =
             "system:" + Settings.System.QS_SHOW_BATTERY_PERCENT
 
-        internal val NETWORK_TRAFFIC_ENABLED =
-            "system:" + Settings.System.NETWORK_TRAFFIC_ENABLED
-
         private fun Int.stateToString() =
             when (this) {
                 QQS_HEADER_CONSTRAINT -> "QQS Header"
@@ -378,8 +375,6 @@ constructor(
         val colorStateList = Utils.getColorAttr(context, android.R.attr.textColorPrimary)
 
         iconManager.setTint(fgColor, bgColor)
-        iconContainer.setIsUsingQs(true)
-        iconContainer.setNetworkTrafficColor(fgColor)
 
         if (!NewStatusBarIcons.isEnabled) {
             batteryIcon.isVisible = true
@@ -485,7 +480,6 @@ constructor(
         tunerService.addTunable(this, QS_BATTERY_STYLE)
         tunerService.addTunable(this, STATUS_BAR_BATTERY_STYLE)
         tunerService.addTunable(this, QS_SHOW_BATTERY_PERCENT)
-        tunerService.addTunable(this, NETWORK_TRAFFIC_ENABLED)
     }
 
     override fun onViewDetached() {
@@ -497,7 +491,6 @@ constructor(
         statusBarIconController.removeIconGroup(iconManager)
         nextAlarmController.removeCallback(nextAlarmCallback)
         systemIconsHoverContainer.setOnHoverListener(null)
-        iconContainer.setIsUsingQs(false)
         tunerService.removeTunable(this)
     }
 
@@ -516,11 +509,6 @@ constructor(
             QS_SHOW_BATTERY_PERCENT -> {
                 qsBatteryPercent = TunerService.parseInteger(value, 2)
                 updateQsBatteryStyle()
-            }
-
-            NETWORK_TRAFFIC_ENABLED -> {
-                if (TunerService.parseIntegerSwitch(value, false))
-                    updateIconManagerColors()
             }
 
             else -> return
