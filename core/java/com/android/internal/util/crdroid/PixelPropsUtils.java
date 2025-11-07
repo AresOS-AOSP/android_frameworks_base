@@ -26,7 +26,6 @@ import android.app.TaskStackListener;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
-import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.os.Binder;
@@ -34,14 +33,12 @@ import android.os.Build;
 import android.os.Process;
 import android.os.SystemProperties;
 import android.os.UserHandle;
-import android.provider.Settings;
-import android.text.TextUtils;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.WindowManager;
 
 import com.android.internal.R;
-import com.android.internal.util.crdroid.Utils;
+import com.android.internal.util.crdroid.KeyProviderManager;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -50,7 +47,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Random;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
@@ -65,7 +61,6 @@ public final class PixelPropsUtils {
     private static final String PACKAGE_ARCORE = "com.google.ar.core";
     private static final String PACKAGE_GMS = "com.google.android.gms";
     private static final String PROCESS_GMS_UNSTABLE = PACKAGE_GMS + ".unstable";
-    private static final String PACKAGE_GOOGLE = "com.google";
     private static final String PACKAGE_NEXUS_LAUNCHER = "com.google.android.apps.nexuslauncher";
     private static final String PACKAGE_QSB = "com.google.android.googlequicksearchbox";
     private static final String PACKAGE_SI = "com.google.android.settings.intelligence";
@@ -79,8 +74,6 @@ public final class PixelPropsUtils {
     private static final String TAG = PixelPropsUtils.class.getSimpleName();
     private static final boolean DEBUG = SystemProperties.getBoolean(PROP_HOOKS + "DEBUG", false);
 
-    private static final String sDeviceModel =
-            SystemProperties.get("ro.product.model", Build.MODEL);
     private static final String sDeviceFingerprint =
             SystemProperties.get("ro.product.fingerprint", Build.FINGERPRINT);
 
@@ -187,24 +180,6 @@ public final class PixelPropsUtils {
         propsToChangeMeizu.put("DISPLAY", "Flyme");
         propsToChangeMeizu.put("PRODUCT", "meizu_16thPlus_CN");
         propsToChangeMeizu.put("MODEL", "meizu 16th Plus");
-    }
-
-    public static String getBuildID(String fingerprint) {
-        Pattern pattern = Pattern.compile("([A-Za-z0-9]+\\.\\d+\\.\\d+\\.\\w+)");
-        Matcher matcher = pattern.matcher(fingerprint);
-
-        if (matcher.find()) {
-            return matcher.group(1);
-        }
-        return "";
-    }
-
-    public static String getDeviceName(String fingerprint) {
-        String[] parts = fingerprint.split("/");
-        if (parts.length >= 2) {
-            return parts[1];
-        }
-        return "";
     }
 
     private static boolean isGoogleCameraPackage(String packageName) {
@@ -406,41 +381,6 @@ public final class PixelPropsUtils {
             }
         } catch (NoSuchFieldException | IllegalAccessException | IllegalArgumentException e) {
             Log.e(TAG, "Failed to set prop " + key, e);
-        }
-    }
-
-    private static void setVersionField(String key, Object value) {
-        try {
-            dlog("Defining version field " + key + " to " + value.toString());
-            Field field = Build.VERSION.class.getDeclaredField(key);
-            field.setAccessible(true);
-            field.set(null, value);
-            field.setAccessible(false);
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            Log.e(TAG, "Failed to set version field " + key, e);
-        }
-    }
-
-    private static void setVersionFieldString(String key, String value) {
-        try {
-            Field field = Build.VERSION.class.getDeclaredField(key);
-            field.setAccessible(true);
-            field.set(null, value);
-            field.setAccessible(false);
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            Log.e(TAG, "Failed to spoof Build." + key, e);
-        }
-    }
-
-    private static void setVersionFieldInt(String key, int value) {
-        try {
-            dlog("Defining version field " + key + " to " + value);
-            Field field = Build.VERSION.class.getDeclaredField(key);
-            field.setAccessible(true);
-            field.set(null, value);
-            field.setAccessible(false);
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            Log.e(TAG, "Failed to spoof Build." + key, e);
         }
     }
 
