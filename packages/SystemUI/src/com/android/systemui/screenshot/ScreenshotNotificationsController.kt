@@ -211,6 +211,11 @@ internal constructor(
         contentIntent?.let(builder::setContentIntent)
         loadNotificationPreview(savedResult.uri)?.let { preview -> builder.applyPreview(preview) }
         NotificationUtils.overrideNotificationAppName(context, builder, true)
+        notificationManager.notify(
+            POST_SCREENSHOT_NOTIFICATION_TAG,
+            POST_SCREENSHOT_NOTIFICATION_GROUP_ID,
+            createGroupSummaryNotification(),
+        )
         notificationManager.notify(POST_SCREENSHOT_NOTIFICATION_TAG, notificationId, builder.build())
     }
 
@@ -262,11 +267,27 @@ internal constructor(
 
     private fun Notification.Builder.applyPreview(preview: Bitmap) {
         setLargeIcon(preview)
-        setStyle(Notification.BigPictureStyle().bigPicture(preview).showBigPictureWhenCollapsed(true))
+        setStyle(Notification.BigPictureStyle().bigPicture(preview))
+    }
+
+    private fun createGroupSummaryNotification(): Notification {
+        val builder =
+            Notification.Builder(context, NotificationChannels.SCREENSHOTS_HEADSUP)
+                .setSmallIcon(com.android.systemui.res.R.drawable.screenshot_image)
+                .setContentTitle(
+                    res.getString(com.android.systemui.res.R.string.screenshot_saved_title)
+                )
+                .setGroup(POST_SCREENSHOT_NOTIFICATION_GROUP_KEY)
+                .setGroupSummary(true)
+                .setAutoCancel(true)
+                .setSilent(true)
+        NotificationUtils.overrideNotificationAppName(context, builder, true)
+        return builder.build()
     }
 
     companion object {
         const val POST_SCREENSHOT_NOTIFICATION_TAG = "ScreenshotSavedNotification"
+        const val POST_SCREENSHOT_NOTIFICATION_GROUP_ID = 2107821532
         private const val LOG_TAG = "ScreenshotNotifications"
         private const val POST_SCREENSHOT_NOTIFICATION_GROUP_KEY = "saved_screenshots"
         private const val MAX_NOTIFICATION_PREVIEW_EDGE_PX = 2048
