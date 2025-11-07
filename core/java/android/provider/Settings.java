@@ -13784,41 +13784,6 @@ public final class Settings {
         public static final String VBOOT_HASH = "vboot_hash";
 
         /**
-         * Whether to use PIF spoof for google apps
-         * @hide
-         */
-        @Readable
-        public static final String PI_ENABLE_SPOOF = "pi_enable_spoof";
-
-        /**
-         * Whether to disable GMS cert chain with custom keybox
-         * @hide
-         */
-        @Readable
-        public static final String PI_GMS_CERT_CHAIN = "pi_gms_cert_chain";
-
-        /**
-         * Whether to use PIF spoof for games
-         * @hide
-         */
-        @Readable
-        public static final String PI_GAMES_SPOOF = "pi_games_spoof";
-
-        /**
-         * Whether to use PIF spoof for photos
-         * @hide
-         */
-        @Readable
-        public static final String PI_PHOTOS_SPOOF = "pi_photos_spoof";
-
-        /**
-         * Whether to use PIF spoof for netflix
-         * @hide
-         */
-        @Readable
-        public static final String PI_NETFLIX_SPOOF = "pi_netflix_spoof";
-
-        /**
          * Control which apps to hide from other user apps.
          * @hide
          */
@@ -14012,6 +13977,8 @@ public final class Settings {
         public static final String HIDE_DEVELOPER_STATUS = "hide_developer_status";
 
         /**
+=======
+>>>>>>> parent of 76f06c6 (PixelPropsUtils: Move from props to Settings switch)
          * Keys we no longer back up under the current schema, but want to continue to
          * process when restoring historical backup datasets.
          *
