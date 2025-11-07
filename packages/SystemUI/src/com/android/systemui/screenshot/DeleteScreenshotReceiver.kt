@@ -21,6 +21,7 @@ import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.service.notification.StatusBarNotification
 import com.android.systemui.dagger.qualifiers.Background
 import java.util.concurrent.Executor
 import javax.inject.Inject
@@ -41,17 +42,25 @@ class DeleteScreenshotReceiver @Inject constructor(
         }
         val notificationId = uri.hashCode()
         val notificationManager = context.getSystemService(NotificationManager::class.java)
-        val hasOtherSavedScreenshotNotifications =
-            notificationManager?.activeNotifications.orEmpty().any {
-                it.tag == ScreenshotNotificationsController.POST_SCREENSHOT_NOTIFICATION_TAG &&
-                    it.id != notificationId
-            }
+        val childNotificationCount =
+            notificationManager?.activeNotifications.orEmpty().count(::isSavedScreenshotNotification)
+                ?: 0
         notificationManager?.cancel(
             ScreenshotNotificationsController.POST_SCREENSHOT_NOTIFICATION_TAG,
             notificationId,
         )
-        if (!hasOtherSavedScreenshotNotifications) {
+        if (childNotificationCount <= 1) {
+            notificationManager?.cancel(
+                ScreenshotNotificationsController.POST_SCREENSHOT_NOTIFICATION_TAG,
+                ScreenshotNotificationsController.POST_SCREENSHOT_NOTIFICATION_GROUP_ID,
+            )
             context.closeSystemDialogs()
         }
+    }
+
+    private fun isSavedScreenshotNotification(notification: StatusBarNotification): Boolean {
+        return notification.tag == ScreenshotNotificationsController.POST_SCREENSHOT_NOTIFICATION_TAG &&
+            notification.id !=
+                ScreenshotNotificationsController.POST_SCREENSHOT_NOTIFICATION_GROUP_ID
     }
 }
