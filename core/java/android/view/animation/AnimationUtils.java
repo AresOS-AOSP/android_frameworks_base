@@ -30,10 +30,13 @@ import android.content.res.Resources.NotFoundException;
 import android.content.res.Resources.Theme;
 import android.content.res.XmlResourceParser;
 import android.os.SystemClock;
+import android.os.SystemProperties;
 import android.util.AttributeSet;
 import android.util.TimeUtils;
 import android.util.Xml;
 import android.view.InflateException;
+
+import com.android.internal.R;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
@@ -217,6 +220,20 @@ public class AnimationUtils {
      */
     public static Animation loadAnimation(Context context, @AnimRes int id)
             throws NotFoundException {
+
+        if (SystemProperties.getBoolean("persist.sys.activity_anim_perf_override", false)) {
+            ActivityAnimations.maybeInit(context);
+            switch (id) {
+                case R.anim.activity_open_enter:
+                    return ActivityAnimations.getOpenEnter();
+                case R.anim.activity_open_exit:
+                    return ActivityAnimations.getOpenExit();
+                case R.anim.activity_close_enter:
+                    return ActivityAnimations.getCloseEnter();
+                case R.anim.activity_close_exit:
+                    return ActivityAnimations.getCloseExit();
+            }
+        }
 
         XmlResourceParser parser = null;
         try {
@@ -497,5 +514,119 @@ public class AnimationUtils {
             }
         }
         return interpolator;
+    }
+
+    /** @hide */
+    public static final class ActivityAnimations {
+
+        private static final float TRANSLATION_DISTANCE_RATIO = 0.18f;
+        private static final long TRANSLATION_DURATION_MS = 500L;
+        private static final long ALPHA_DURATION_MS = 150L;
+        private static final long ALPHA_ENTER_DELAY_MS = 80L;
+        private static final long ALPHA_EXIT_DELAY_MS = 65L;
+
+        private static Interpolator sFastOutExtraSlowInInterpolator;
+        private static Interpolator sLinearInterpolator;
+
+        private static boolean sInitialized;
+
+        private ActivityAnimations() {}
+
+        /** @hide */
+        public static void maybeInit(Context context) {
+            if (sInitialized) {
+                return;
+            }
+            sFastOutExtraSlowInInterpolator = AnimationUtils.loadInterpolator(
+                    context, R.interpolator.fast_out_extra_slow_in);
+            sLinearInterpolator = AnimationUtils.loadInterpolator(
+                    context, R.interpolator.linear);
+            sInitialized = true;
+        }
+
+        /** @hide */
+        public static Animation getOpenEnter() {
+            return createOpenEnterAnimation();
+        }
+
+        /** @hide */
+        public static Animation getOpenExit() {
+            return createOpenExitAnimation();
+        }
+
+        /** @hide */
+        public static Animation getCloseEnter() {
+            return createCloseEnterAnimation();
+        }
+
+        /** @hide */
+        public static Animation getCloseExit() {
+            return createCloseExitAnimation();
+        }
+
+        private static Animation createOpenEnterAnimation() {
+            AnimationSet set = createBaseAnimationSet(/*hasRoundedCorners=*/ true);
+            addAlpha(set, 0f, 1f, ALPHA_ENTER_DELAY_MS,
+                    sLinearInterpolator);
+            addTranslate(set, TRANSLATION_DISTANCE_RATIO, 0f, 0L);
+            return set;
+        }
+
+        private static Animation createOpenExitAnimation() {
+            AnimationSet set = createBaseAnimationSet(/*hasRoundedCorners=*/ false);
+            addTranslate(set, 0f, -TRANSLATION_DISTANCE_RATIO, 0L);
+            return set;
+        }
+
+        private static Animation createCloseEnterAnimation() {
+            AnimationSet set = createBaseAnimationSet(/*hasRoundedCorners=*/ false);
+            addTranslate(set, -TRANSLATION_DISTANCE_RATIO, 0f, 0L);
+            return set;
+        }
+
+        private static Animation createCloseExitAnimation() {
+            AnimationSet set = createBaseAnimationSet(/*hasRoundedCorners=*/ true);
+            addAlpha(set, 1f, 0f, ALPHA_EXIT_DELAY_MS,
+                    sLinearInterpolator);
+            addTranslate(set, 0f, TRANSLATION_DISTANCE_RATIO, 0L);
+            return set;
+        }
+
+        private static AnimationSet createBaseAnimationSet(boolean hasRoundedCorners) {
+            AnimationSet set = new AnimationSet(/*shareInterpolator=*/ false);
+            set.setFillEnabled(true);
+            set.setFillBefore(true);
+            set.setFillAfter(true);
+            set.setHasRoundedCorners(hasRoundedCorners);
+            return set;
+        }
+
+        private static void addAlpha(AnimationSet set, float from, float to, long startOffset,
+                Interpolator interpolator) {
+            AlphaAnimation alpha = new AlphaAnimation(from, to);
+            alpha.setDuration(ALPHA_DURATION_MS);
+            alpha.setStartOffset(startOffset);
+            alpha.setInterpolator(interpolator);
+            alpha.setFillEnabled(true);
+            alpha.setFillBefore(true);
+            alpha.setFillAfter(true);
+            set.addAnimation(alpha);
+        }
+
+        private static void addTranslate(AnimationSet set, float fromX, float toX,
+                long startOffset) {
+            TranslateAnimation slide = new TranslateAnimation(
+                    Animation.RELATIVE_TO_PARENT, fromX,
+                    Animation.RELATIVE_TO_PARENT, toX,
+                    Animation.RELATIVE_TO_PARENT, 0f,
+                    Animation.RELATIVE_TO_PARENT, 0f);
+            slide.setDuration(TRANSLATION_DURATION_MS);
+            slide.setStartOffset(startOffset);
+            slide.setInterpolator(sFastOutExtraSlowInInterpolator);
+            slide.setFillEnabled(true);
+            slide.setFillBefore(true);
+            slide.setFillAfter(true);
+            set.addAnimation(slide);
+        }
     }
 }
