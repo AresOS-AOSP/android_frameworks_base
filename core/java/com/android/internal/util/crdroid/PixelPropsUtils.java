@@ -118,12 +118,6 @@ public final class PixelPropsUtils {
             "jp.id_credit_sp2.android"
     };
 
-    private static final String[] customGoogleCameraPackages = {
-            "com.google.android.MTCL83",
-            "com.google.android.UltraCVM",
-            "com.google.android.apps.cameralite"
-    };
-
     private static final String[] packagesToChangeMeizu = {
         "cmccwm.mobilemusic",
         "cn.kuwo.player",
@@ -144,7 +138,7 @@ public final class PixelPropsUtils {
     private static final ComponentName GMS_ADD_ACCOUNT_ACTIVITY = ComponentName.unflattenFromString(
             "com.google.android.gms/.auth.uiflows.minutemaid.MinuteMaidActivity");
 
-    private static volatile boolean sIsGms, sIsExcluded;
+    private static volatile boolean sIsGms;
     private static volatile String sProcessName;
 
     static {
@@ -180,11 +174,6 @@ public final class PixelPropsUtils {
         propsToChangeMeizu.put("DISPLAY", "Flyme");
         propsToChangeMeizu.put("PRODUCT", "meizu_16thPlus_CN");
         propsToChangeMeizu.put("MODEL", "meizu 16th Plus");
-    }
-
-    private static boolean isGoogleCameraPackage(String packageName) {
-        return packageName.contains("GoogleCamera")
-                || Arrays.asList(customGoogleCameraPackages).contains(packageName);
     }
 
     private static boolean shouldTryToCertifyDevice() {
@@ -236,7 +225,6 @@ public final class PixelPropsUtils {
         final boolean sIsTablet = isDeviceTablet(appContext);
         sProcessName = processName;
         sIsGms = packageName.equals(PACKAGE_GMS) && processName.equals(PROCESS_GMS_UNSTABLE);
-        sIsExcluded = isGoogleCameraPackage(packageName);
         String model = SystemProperties.get("ro.product.model");
         boolean isPixelDevice = SystemProperties.get("ro.soc.manufacturer").equalsIgnoreCase("Google");
         boolean isMainlineDevice = isPixelDevice && model.matches("Pixel (8|9|10)[a-zA-Z ]*");
@@ -246,9 +234,6 @@ public final class PixelPropsUtils {
         setGameProps(packageName);
         
         if (packageName == null || processName == null || packageName.isEmpty()) {
-            return;
-        }
-        if (sIsExcluded) {
             return;
         }
 
@@ -557,7 +542,7 @@ public final class PixelPropsUtils {
         if (!isPixelGmsEnabled)
             return;
         // Check stack for SafetyNet or Play Integrity
-        if (isCallerSafetyNet() && !sIsExcluded) {
+        if (isCallerSafetyNet()) {
             dlog("Blocked key attestation");
             throw new UnsupportedOperationException();
         }
