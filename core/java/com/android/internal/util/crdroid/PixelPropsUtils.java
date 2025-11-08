@@ -320,7 +320,7 @@ public final class PixelPropsUtils {
     }
 
     public static void setGameProps(String packageName) {
-        if (!SystemProperties.getBoolean(ENABLE_GAME_PROP_OPTIONS, false)) {
+        if (!SystemProperties.getBoolean(ENABLE_GAME_PROP_OPTIONS, true)) {
             return;
         }
         if (packageName == null || packageName.isEmpty()) {
