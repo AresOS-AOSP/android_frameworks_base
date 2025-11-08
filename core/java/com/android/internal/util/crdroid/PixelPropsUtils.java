@@ -65,11 +65,11 @@ public final class PixelPropsUtils {
     private static final String PACKAGE_QSB = "com.google.android.googlequicksearchbox";
     private static final String PACKAGE_SI = "com.google.android.settings.intelligence";
 
-    private static final String PROP_HOOKS = "persist.sys.pihooks_";
-    private static final String SPOOF_QSB = "persist.sys.pixelprops.qsb";
-    private static final String SPOOF_PIXEL_PROPS = "persist.sys.pixelprops";
+    private static final String PROP_HOOKS = "persist.sys.phk_";
+    private static final String SPOOF_QSB = "persist.sys.pp.qsb";
+    private static final String SPOOF_PIXEL_PROPS = "persist.sys.pp";
     private static final String ENABLE_GAME_PROP_OPTIONS = "persist.sys.gameprops.enabled";
-    public static final String SPOOF_PIXEL_GMS = "persist.sys.pixelprops.gms";
+    public static final String SPOOF_PIXEL_GMS = "persist.sys.pp.gms";
 
     private static final String TAG = PixelPropsUtils.class.getSimpleName();
     private static final boolean DEBUG = SystemProperties.getBoolean(PROP_HOOKS + "DEBUG", false);

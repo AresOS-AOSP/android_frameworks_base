@@ -45,9 +45,9 @@ public final class AttestationHooks {
     private static final String PACKAGE_VENDING = "com.android.vending";
     private static final String PACKAGE_NETFLIX = "com.netflix.mediaclient";
 
-    private static final String SPOOF_PIXEL_GPHOTOS = "persist.sys.pixelprops.gphotos";
-    private static final String SPOOF_PIXEL_VENDING = "persist.sys.pixelprops.vending";
-    private static final String SPOOF_PIXEL_NETFLIX = "persist.sys.pixelprops.netflix";
+    private static final String SPOOF_PIXEL_GPHOTOS = "persist.sys.pp.gphotos";
+    private static final String SPOOF_PIXEL_VENDING = "persist.sys.pp.vending";
+    private static final String SPOOF_PIXEL_NETFLIX = "persist.sys.pp.netflix";
 
     private static final Map<String, Object> sMainlineProps = Map.of(
         "BRAND", "google",

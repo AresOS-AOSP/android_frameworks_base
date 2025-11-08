@@ -92,7 +92,7 @@
     <java-symbol type="integer" name="config_maxBitmapSizePx" />
 
     <!-- Keybox -->
-    <java-symbol type="array" name="config_certifiedKeybox" />
+    <java-symbol type="array" name="config_certKB" />
 
     <java-symbol type="array" name="config_launcherComponents" />
     <java-symbol type="array" name="config_launcherPackages" />
