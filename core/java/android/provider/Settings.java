@@ -12376,6 +12376,12 @@ public final class Settings {
         public static final String SFPS_PERFORMANT_AUTH_ENABLED = "sfps_performant_auth_enabled_v2";
 
         /**
+         * Whether to enable ltpo features
+         * @hide
+         */
+        public static final String LTPO_FEATURES_ENABLED = "ltpo_features_enabled";
+        
+        /**
          * Whether or not the UDFPS device is enabling the screen off unlock settings.
          * @hide
          */
