@@ -29,6 +29,7 @@ import com.android.systemui.keyguard.KeyguardSliceProvider;
 import com.android.systemui.media.MediaViewController;
 import com.android.systemui.people.PeopleProvider;
 import com.android.systemui.pulse.PulseViewController;
+import com.android.systemui.qs.tiles.impl.AxTileProvider;
 import com.android.systemui.startable.Dependencies;
 import com.android.systemui.statusbar.NotificationInsetsModule;
 import com.android.systemui.statusbar.NTForbiddenSwipeDownQSController;
@@ -184,6 +185,9 @@ public interface SysUIComponent {
      * Returns {@link CoreStartable} dependencies if there are any.
      */
     @Dependencies Map<Class<?>, Set<Class<? extends CoreStartable>>> getStartableDependencies();
+
+    @SysUISingleton
+    AxTileProvider axTileProvider();
 
     /**
      * Member injection into the supplied argument.

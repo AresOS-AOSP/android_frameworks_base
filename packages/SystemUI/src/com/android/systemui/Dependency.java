@@ -40,7 +40,6 @@ import com.android.systemui.plugins.DarkIconDispatcher;
 import com.android.systemui.plugins.PluginManager;
 import com.android.systemui.plugins.VolumeDialogController;
 import com.android.systemui.plugins.statusbar.StatusBarStateController;
-import com.android.systemui.qs.tiles.impl.AxTileProvider;
 import com.android.systemui.recents.LauncherProxyService;
 import com.android.systemui.settings.UserTracker;
 import com.android.systemui.statusbar.CommandQueue;
@@ -165,7 +164,6 @@ public class Dependency {
     @Inject Lazy<UserTracker> mUserTrackerLazy;
     @Inject Lazy<StatusBarWindowControllerStore> mStatusBarWindowControllerStoreLazy;
     @Inject @Background Lazy<Executor> mBackgroundExecutor;
-    @Inject Lazy<AxTileProvider> mAxTileProvider;
 
     @Inject
     public Dependency() {
@@ -213,8 +211,6 @@ public class Dependency {
         mProviders.put(
                 StatusBarWindowControllerStore.class, mStatusBarWindowControllerStoreLazy::get);
         mProviders.put(BACKGROUND_EXECUTOR, mBackgroundExecutor::get);
-        mProviders.put(
-                AxTileProvider.class, mAxTileProvider::get);
         Dependency.setInstance(this);
     }
 
