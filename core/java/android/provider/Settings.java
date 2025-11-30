@@ -6938,6 +6938,11 @@ public final class Settings {
         public static final String STATUSBAR_NOTIF_COUNT = "statusbar_notif_count";
 
         /**
+         * @hide
+         */
+        public static final String SINGLE_QS_TONE_ENABLED = "single_qs_tone_enabled";
+
+        /**
          * Whether to show the battery bar
          * @hide
          */
