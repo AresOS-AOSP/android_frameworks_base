@@ -294,4 +294,7 @@
 
     <!-- Stacked mobile icons -->
     <string name="enable_stacked_mobile_icons_title">Combined data icon</string>
+
+    <!-- Screen record dialog -->
+    <string name="screenrecord_keep_screen_awake_label">Keep the screen awake</string>
 </resources>
