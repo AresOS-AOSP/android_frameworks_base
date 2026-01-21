@@ -279,6 +279,7 @@ class KeyguardController {
 
         if (displayId == DEFAULT_DISPLAY && keyguardChanged) {
             AxSandboxService.get().setKeyguardDoneLocked(!keyguardShowing);
+            AxRefreshRateController.get().setKeyguardDone(!keyguardShowing);
         }
 
         // Update the sleep token first such that ensureActivitiesVisible has correct sleep token
