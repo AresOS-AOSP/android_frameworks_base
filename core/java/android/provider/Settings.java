@@ -6927,6 +6927,11 @@ public final class Settings {
         public static final String QS_TILE_ALTERNATE_COLOR = "qs_tile_alternate_color";
 
         /**
+         * @hide
+         */
+        public static final String DUAL_TARGET_TILE_STYLE = "dual_target_tile_style";
+
+        /**
          * Whether to show the battery bar
          * @hide
          */
