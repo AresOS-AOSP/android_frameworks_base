@@ -39,6 +39,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -93,6 +94,7 @@ import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -109,6 +111,8 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.app.tracing.coroutines.launchTraced as launch
+import com.android.compose.PlatformSlider
+import com.android.compose.PlatformSliderDefaults
 import com.android.compose.modifiers.padding
 import com.android.compose.modifiers.sliderPercentage
 import com.android.compose.modifiers.thenIf
@@ -167,26 +171,18 @@ fun BrightnessSlider(
     val cr = context.contentResolver
 
     var hapticsEnabled by remember { mutableStateOf(readEnableHaptics(cr)) }
+    var useAxStyle by remember { mutableStateOf(readUseAxStyle(cr)) }
+    var showAutoBrightness by remember { mutableStateOf(readShowAutoBrightness(cr)) }
 
     val shapeMode = rememberSliderShapeMode()
     val trackCornerDp: Dp = when (shapeMode) {
-        1 -> 24.dp  /* Circle */
+        1 -> 28.dp  /* Circle */
         2 -> 12.dp  /* Rounded Square */
         3 -> 0.dp /* Square */
         else -> Dimensions.SliderTrackRoundedCorner
     }
 
-    val trackShape = RoundedCornerShape(trackCornerDp)
     val brightnessGradient = brightnessSliderGradient()
-    val thumbColorOverride: Color? =
-        if (!rememberSliderGradient()) {
-            null
-        } else if (rememberGradientColorMode() == 1) {
-            val (customStart, _) = rememberGradientCustomColors()
-            customStart
-        } else {
-            MaterialTheme.colorScheme.primary
-        }
 
     var value by remember(gammaValue) { mutableIntStateOf(gammaValue) }
     val animatedValue by
@@ -196,6 +192,7 @@ fun BrightnessSlider(
     val enabled = !isRestricted
     val contentDescription = stringResource(R.string.accessibility_brightness)
     val interactionSource = remember { MutableInteractionSource() }
+    
     val hapticsViewModel: SliderHapticsViewModel? =
         if (hapticsEnabled) {
             rememberViewModel(traceName = "SliderHapticsViewModel") {
@@ -212,6 +209,135 @@ fun BrightnessSlider(
         } else {
             null
         }
+
+    val hasAutoBrightness = context.resources.getBoolean(
+        com.android.internal.R.bool.config_automatic_brightness_available
+    )
+
+    DisposableEffect(Unit) {
+        val observer = object : ContentObserver(null) {
+            override fun onChange(selfChange: Boolean) {
+                context.mainExecutor.execute {
+                    hapticsEnabled = readEnableHaptics(cr)
+                    useAxStyle = readUseAxStyle(cr)
+                    showAutoBrightness = readShowAutoBrightness(cr)
+                }
+            }
+        }
+
+        cr.registerContentObserver(
+            Settings.System.getUriFor(Settings.System.QS_BRIGHTNESS_SLIDER_HAPTIC),
+            false, observer, UserHandle.USER_ALL
+        )
+
+        cr.registerContentObserver(
+            Settings.System.getUriFor(Settings.System.QS_BRIGHTNESS_SLIDER_STYLE),
+            false, observer, UserHandle.USER_ALL
+        )
+
+        cr.registerContentObserver(
+            LineageSettings.Secure.getUriFor(LineageSettings.Secure.QS_SHOW_AUTO_BRIGHTNESS),
+            false, observer, UserHandle.USER_ALL
+        )
+
+        onDispose {
+            cr.unregisterContentObserver(observer)
+        }
+    }
+
+    if (useAxStyle) {
+        val iconRes by
+            remember(gammaValue, valueRange) {
+                derivedStateOf {
+                    val percentage =
+                        (value - valueRange.first) * 100f / (valueRange.last - valueRange.first)
+                    iconResProvider(percentage)
+                }
+            }
+        val axIconRes = if (autoMode) R.drawable.ic_qs_brightness_auto_on else iconRes
+        val axIconSize = 56.dp
+        val iconTapScope = rememberCoroutineScope()
+        val axGradientTrackColor: Color = if (brightnessGradient != null) {
+            val mode = rememberGradientColorMode()
+            if (mode == 1) rememberGradientCustomColors().first
+            else MaterialTheme.colorScheme.primary
+        } else {
+            CustomColorScheme.current.qsTileColor
+        }
+        val sliderColors = PlatformSliderDefaults.defaultPlatformSliderColors().copy(
+            trackColor = axGradientTrackColor,
+        )
+
+        Box(modifier = modifier) {
+            PlatformSlider(
+                value = animatedValue,
+                onValueChange = {
+                    if (enabled && !overriddenByAppState) {
+                        hapticsViewModel?.onValueChange(it)
+                        value = it.toInt()
+                        onDrag(value)
+                    }
+                },
+                onValueChangeFinished = {
+                    if (enabled && !overriddenByAppState) {
+                        hapticsViewModel?.onValueChangeEnded()
+                        onStop(value)
+                    }
+                },
+                valueRange = floatValueRange,
+                enabled = enabled,
+                interactionSource = interactionSource,
+                colors = sliderColors,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(axIconSize)
+                    .sysuiResTag("slider")
+                    .semantics(mergeDescendants = true) {
+                        this.text = AnnotatedString(contentDescription)
+                    }
+                    .sliderPercentage {
+                        (value - valueRange.first).toFloat() / (valueRange.last - valueRange.first)
+                    }
+                    .thenIf(isRestricted) {
+                        Modifier.clickable {
+                            if (restriction is PolicyRestriction.Restricted) {
+                                onRestrictedClick(restriction)
+                            }
+                        }
+                    },
+                icon = { _ ->
+                    Icon(
+                        painter = painterResource(axIconRes),
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                    )
+                },
+            )
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .size(axIconSize)
+                    .clip(CircleShape)
+                    .pointerInput(Unit) {
+                        detectTapGestures {
+                            iconTapScope.launch { onIconClick() }
+                        }
+                    }
+            )
+        }
+
+        val currentShowToast by rememberUpdatedState(showToast)
+        LaunchedEffect(interactionSource, overriddenByAppState) {
+            interactionSource.interactions.collect { interaction ->
+                if (interaction is DragInteraction.Start && overriddenByAppState) {
+                    currentShowToast()
+                }
+            }
+        }
+        return
+    }
+
     val colors = colors(brightnessGradient)
 
     // The value state is recreated every time gammaValue changes, so we recreate this derivedState
@@ -256,36 +382,6 @@ fun BrightnessSlider(
                     }
                 }
             }
-        }
-    }
-
-    val hasAutoBrightness = context.resources.getBoolean(
-        com.android.internal.R.bool.config_automatic_brightness_available
-    )
-    var showAutoBrightness by remember { mutableStateOf(readShowAutoBrightness(cr)) }
-
-    DisposableEffect(Unit) {
-        val observer = object : ContentObserver(null) {
-            override fun onChange(selfChange: Boolean) {
-                context.mainExecutor.execute {
-                    showAutoBrightness = readShowAutoBrightness(cr)
-                    hapticsEnabled = readEnableHaptics(cr)
-                }
-            }
-        }
-
-        cr.registerContentObserver(
-            LineageSettings.Secure.getUriFor(LineageSettings.Secure.QS_SHOW_AUTO_BRIGHTNESS),
-            false, observer, UserHandle.USER_ALL
-        )
-
-        cr.registerContentObserver(
-            Settings.System.getUriFor(Settings.System.QS_BRIGHTNESS_SLIDER_HAPTIC),
-            false, observer, UserHandle.USER_ALL
-        )
-
-        onDispose {
-            cr.unregisterContentObserver(observer)
         }
     }
 
@@ -334,14 +430,7 @@ fun BrightnessSlider(
                     },
             interactionSource = interactionSource,
             thumb = {
-                SliderDefaults.Thumb(
-                    interactionSource = interactionSource,
-                    enabled = enabled,
-                    thumbSize = DpSize(ThumbWidth, ThumbHeight),
-                    colors = SliderDefaults.colors(
-                        thumbColor = thumbColorOverride ?: SliderDefaults.colors().thumbColor
-                    )
-                )
+                Box(modifier = Modifier.size(0.dp))
             },
             track = { sliderState ->
                 var showIconActive by remember { mutableStateOf(true) }
@@ -371,8 +460,7 @@ fun BrightnessSlider(
                     }
                 }
 
-                SliderDefaults.Track(
-                    sliderState = sliderState,
+                Box(
                     modifier =
                         Modifier.motionTestValues {
                                 (iconActiveAlphaAnimatable.isRunning ||
@@ -385,41 +473,55 @@ fun BrightnessSlider(
                                     BrightnessSliderMotionTestKeys.InactiveIconAlpha
                             }
                             .height(TrackHeight)
-                            .drawWithCache {
-
-                                val outline = trackShape.createOutline(size, layoutDirection, this)
-                                val clipPath = outline.asPath()
-
-                                onDrawWithContent {
-                                drawContent()
-
-                                val gradient = brightnessGradient
-                                if (gradient != null) {
-                                    val gapPx = ThumbTrackGapSize.toPx()
-                                    val fraction = sliderState.coercedValueAsFraction
-                                    val activeEnd = (size.width * fraction - gapPx).coerceAtLeast(0f)
-
-                                    if (activeEnd > 0f) {
+                            .fillMaxWidth()
+                            .drawWithContent {
+                                val trackHeight = size.height
+                                val trackWidth = size.width
+                                val activeTrackEnd = trackWidth * sliderState.coercedValueAsFraction
+                                
+                                val cornerRadius = CornerRadius(trackCornerDp.toPx())
+                                
+                                drawRoundRect(
+                                    color = colors.inactiveTrackColor,
+                                    topLeft = Offset(0f, 0f),
+                                    size = Size(trackWidth, trackHeight),
+                                    cornerRadius = cornerRadius
+                                )
+                                
+                                if (activeTrackEnd > 0f) {
+                                    val gradient = brightnessGradient
+                                    if (gradient != null) {
+                                        val clipPath = Path().apply {
+                                            addRoundRect(
+                                                RoundRect(
+                                                    left = 0f,
+                                                    top = 0f,
+                                                    right = activeTrackEnd.coerceAtMost(trackWidth),
+                                                    bottom = trackHeight,
+                                                    cornerRadius = cornerRadius,
+                                                )
+                                            )
+                                        }
                                         clipPath(clipPath) {
                                             drawRect(
                                                 brush = gradient.brush,
                                                 topLeft = Offset.Zero,
-                                                size = Size(activeEnd.coerceAtMost(size.width), size.height)
+                                                size = Size(trackWidth, trackHeight),
                                             )
                                         }
+                                    } else {
+                                        drawRoundRect(
+                                            color = colors.activeTrackColor,
+                                            topLeft = Offset(0f, 0f),
+                                            size = Size(activeTrackEnd, trackHeight),
+                                            cornerRadius = cornerRadius
+                                        )
                                     }
                                 }
 
-                                val yOffset = size.height / 2 - IconSize.toSize().height / 2
-                                val activeTrackStart = 0f
-                                val activeTrackEnd =
-                                    size.width * sliderState.coercedValueAsFraction -
-                                        ThumbTrackGapSize.toPx()
-                                val inactiveTrackStart = activeTrackEnd + ThumbTrackGapSize.toPx() * 2
-                                val inactiveTrackEnd = size.width
-
-                                val activeTrackWidth = activeTrackEnd - activeTrackStart
-                                val inactiveTrackWidth = inactiveTrackEnd - inactiveTrackStart
+                                val yOffset = trackHeight / 2 - IconSize.toSize().height / 2
+                                val activeTrackWidth = activeTrackEnd
+                                val inactiveTrackWidth = trackWidth - activeTrackEnd
 
                                 if (
                                     IconSize.toSize().width <
@@ -427,7 +529,7 @@ fun BrightnessSlider(
                                 ) {
                                     showIconActive = false
                                     trackIcon(
-                                        Offset(inactiveTrackEnd, yOffset),
+                                        Offset(trackWidth, yOffset),
                                         inactiveIconColor,
                                         iconInactiveAlphaAnimatable.value,
                                     )
@@ -441,13 +543,7 @@ fun BrightnessSlider(
                                         iconActiveAlphaAnimatable.value,
                                     )
                                 }
-                                }
-                            },
-                    trackCornerSize = trackCornerDp,
-                    trackInsideCornerSize = 2.dp,
-                    drawStopIndicator = null,
-                    thumbTrackGapSize = ThumbTrackGapSize,
-                    colors = colors,
+                            }
                 )
             },
         )
@@ -457,6 +553,7 @@ fun BrightnessSlider(
             drawAutoBrightnessButton(
                 autoMode = autoMode,
                 hapticsEnabled = hapticsEnabled,
+                brightnessGradient = brightnessGradient,
                 onIconClick = onIconClick
             )
         }
@@ -602,43 +699,33 @@ private fun rememberShowRingerMode(): Boolean {
     return enabled
 }
 
-private data class BrightnessGradient(
-    val brush: Brush,
-)
+private data class BrightnessGradient(val brush: Brush)
 
 @Composable
 private fun rememberSliderGradient(): Boolean {
     val context = LocalContext.current
     val contentResolver = context.contentResolver
 
-    fun readEnabled(): Boolean {
-        return try {
-            Settings.System.getIntForUser(
-                contentResolver, Settings.System.QS_BRIGHTNESS_SLIDER_GRADIENT, 0,
-                UserHandle.USER_CURRENT
-            ) != 0
-        } catch (_: Throwable) {
-            false
-        }
-    }
+    fun readEnabled(): Boolean = try {
+        Settings.System.getIntForUser(
+            contentResolver, Settings.System.QS_BRIGHTNESS_SLIDER_GRADIENT, 0,
+            UserHandle.USER_CURRENT
+        ) != 0
+    } catch (_: Throwable) { false }
 
     var enabled by remember { mutableStateOf(readEnabled()) }
 
     DisposableEffect(contentResolver) {
         val observer = object : ContentObserver(null) {
-                override fun onChange(selfChange: Boolean) {
-                    enabled = readEnabled()
-                }
+            override fun onChange(selfChange: Boolean) {
+                enabled = readEnabled()
             }
-
+        }
         contentResolver.registerContentObserver(
             Settings.System.getUriFor(Settings.System.QS_BRIGHTNESS_SLIDER_GRADIENT),
             false, observer, UserHandle.USER_ALL
         )
-
-        onDispose {
-            contentResolver.unregisterContentObserver(observer)
-        }
+        onDispose { contentResolver.unregisterContentObserver(observer) }
     }
 
     return enabled
@@ -653,27 +740,19 @@ private fun rememberGradientColorMode(): Int {
             contentResolver, Settings.System.CUSTOM_GRADIENT_COLOR_MODE, 0,
             UserHandle.USER_CURRENT
         )
-    } catch (_: Throwable) {
-        0
-    }
+    } catch (_: Throwable) { 0 }
 
     var mode by remember { mutableIntStateOf(readMode()) }
 
     DisposableEffect(contentResolver) {
         val observer = object : ContentObserver(null) {
-            override fun onChange(selfChange: Boolean) {
-                mode = readMode()
-            }
+            override fun onChange(selfChange: Boolean) { mode = readMode() }
         }
-
         contentResolver.registerContentObserver(
             Settings.System.getUriFor(Settings.System.CUSTOM_GRADIENT_COLOR_MODE),
             false, observer, UserHandle.USER_ALL
         )
-
-        onDispose {
-            contentResolver.unregisterContentObserver(observer)
-        }
+        onDispose { contentResolver.unregisterContentObserver(observer) }
     }
 
     return mode
@@ -688,18 +767,14 @@ private fun rememberGradientCustomColors(): Pair<Color, Color> {
             contentResolver, Settings.System.CUSTOM_GRADIENT_START_COLOR, 0,
             UserHandle.USER_CURRENT
         )
-    } catch (_: Throwable) {
-        0
-    }
+    } catch (_: Throwable) { 0 }
 
     fun readEnd(): Int = try {
         Settings.System.getIntForUser(
             contentResolver, Settings.System.CUSTOM_GRADIENT_END_COLOR, 0,
             UserHandle.USER_CURRENT
         )
-    } catch (_: Throwable) {
-        0
-    }
+    } catch (_: Throwable) { 0 }
 
     var startInt by remember { mutableIntStateOf(readStart()) }
     var endInt by remember { mutableIntStateOf(readEnd()) }
@@ -711,7 +786,6 @@ private fun rememberGradientCustomColors(): Pair<Color, Color> {
                 endInt = readEnd()
             }
         }
-
         contentResolver.registerContentObserver(
             Settings.System.getUriFor(Settings.System.CUSTOM_GRADIENT_START_COLOR),
             false, observer, UserHandle.USER_ALL
@@ -720,10 +794,7 @@ private fun rememberGradientCustomColors(): Pair<Color, Color> {
             Settings.System.getUriFor(Settings.System.CUSTOM_GRADIENT_END_COLOR),
             false, observer, UserHandle.USER_ALL
         )
-
-        onDispose {
-            contentResolver.unregisterContentObserver(observer)
-        }
+        onDispose { contentResolver.unregisterContentObserver(observer) }
     }
 
     val start = if (startInt != 0) Color(startInt) else MaterialTheme.colorScheme.primary
@@ -742,13 +813,11 @@ private fun brightnessSliderGradient(): BrightnessGradient? {
     } else {
         listOf(
             MaterialTheme.colorScheme.primary,
-            MaterialTheme.colorScheme.secondary
+            MaterialTheme.colorScheme.secondary,
         )
     }
 
-    return BrightnessGradient(
-        brush = Brush.horizontalGradient(colors)
-    )
+    return BrightnessGradient(brush = Brush.horizontalGradient(colors))
 }
 
 private fun Modifier.sliderBackground(color: Color, corner: Dp) = drawWithCache {
@@ -781,10 +850,21 @@ private fun readEnableHaptics(cr: ContentResolver): Boolean =
         false
     }
 
+private fun readUseAxStyle(cr: ContentResolver): Boolean =
+    try {
+        Settings.System.getIntForUser(
+            cr, Settings.System.QS_BRIGHTNESS_SLIDER_STYLE,
+            1, UserHandle.USER_CURRENT
+        ) != 0
+    } catch (_: Throwable) {
+        false
+    }
+
 @Composable
 private fun drawAutoBrightnessButton(
     autoMode: Boolean,
     hapticsEnabled: Boolean,
+    brightnessGradient: BrightnessGradient?,
     onIconClick: suspend () -> Unit,
 ) {
     val view = LocalView.current
@@ -803,7 +883,6 @@ private fun drawAutoBrightnessButton(
         3 -> RoundedCornerShape(0.dp)
         else -> RoundedCornerShape(animatedCornerRadius)
     }
-    val brightnessGradient = brightnessSliderGradient()
     val autoIconBrush: Brush? = if (autoMode) brightnessGradient?.brush else null
     val backgroundColor by animateColorAsState(
         targetValue = if (autoMode) {
@@ -832,14 +911,11 @@ private fun drawAutoBrightnessButton(
 
     Box(
         modifier = Modifier
-            .size(45.dp)
+            .size(TrackHeight)
             .clip(autoIconShape)
             .then(
-                if (autoIconBrush != null) {
-                    Modifier.background(autoIconBrush)
-                } else {
-                    Modifier.background(backgroundColor)
-                }
+                if (autoIconBrush != null) Modifier.background(autoIconBrush)
+                else Modifier.background(backgroundColor)
             )
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -856,7 +932,8 @@ private fun drawAutoBrightnessButton(
         Icon(
             painter = painterResource(painterRes),
             contentDescription = stringResource(R.string.accessibility_adaptive_brightness),
-            tint = iconTint
+            tint = iconTint,
+            modifier = Modifier.size(IconSize.width, IconSize.height)
         )
     }
 }
@@ -1010,7 +1087,7 @@ fun BrightnessSliderContainer(
 
     val shapeMode = rememberSliderShapeMode()
     val trackCornerDp: Dp = when (shapeMode) {
-        1 -> 24.dp  /* Circle */
+        1 -> 28.dp  /* Circle */
         2 -> 12.dp  /* Rounded Square */
         3 -> 0.dp /* Square */
         else -> Dimensions.SliderTrackRoundedCorner
@@ -1434,8 +1511,8 @@ private object Dimensions {
     val SliderBackgroundRoundedCorner = 24.dp
     val SliderTrackRoundedCorner = 12.dp
     val IconSize = DpSize(28.dp, 28.dp)
-    val IconPadding = 6.dp
-    val ThumbTrackGapSize = 6.dp
+    val IconPadding = 10.dp
+    val ThumbTrackGapSize = 0.dp
 
     val ThumbHeight : Dp
         @Composable
@@ -1476,10 +1553,9 @@ object BrightnessSliderMotionTestKeys {
 
 @Composable
 private fun colors(brightnessGradient: BrightnessGradient?): SliderColors {
-    val base = SliderDefaults.colors()
-    return base
+    return SliderDefaults.colors()
         .copy(
-            activeTrackColor = if (brightnessGradient != null) Color.Transparent else base.activeTrackColor,
+            activeTrackColor = if (brightnessGradient != null) Color.Transparent else SliderDefaults.colors().activeTrackColor,
             inactiveTrackColor = CustomColorScheme.current.qsTileColor,
             activeTickColor = MaterialTheme.colorScheme.onPrimary,
             inactiveTickColor = MaterialTheme.colorScheme.onSurface,
