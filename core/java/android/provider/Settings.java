@@ -7012,6 +7012,11 @@ public final class Settings {
         /**
          * @hide
          */
+        public static final String DISABLE_STACKED_MOBILE_ICONS = "disable_stacked_mobile_icons";
+
+        /**
+         * @hide
+         */
         public static final String LOCKSCREEN_WEATHER_ENABLED = "lockscreen_weather_enabled";
 
         /**
