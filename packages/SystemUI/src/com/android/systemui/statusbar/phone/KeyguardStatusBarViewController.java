@@ -100,7 +100,6 @@ import com.android.systemui.statusbar.policy.UserInfoController;
 import com.android.systemui.statusbar.ui.binder.KeyguardStatusBarViewBinder;
 import com.android.systemui.statusbar.ui.viewmodel.KeyguardStatusBarViewModel;
 import com.android.systemui.axdynamicbar.ui.AxDynamicBarChipViewModel;
-import com.android.systemui.tuner.TunerService;
 import com.android.systemui.user.ui.viewmodel.StatusBarUserChipViewModel;
 import com.android.systemui.util.ViewController;
 import com.android.systemui.util.settings.SecureSettings;
@@ -118,16 +117,7 @@ import java.util.function.Consumer;
 import javax.inject.Inject;
 
 /** View Controller for {@link com.android.systemui.statusbar.phone.KeyguardStatusBarView}. */
-public class KeyguardStatusBarViewController extends ViewController<KeyguardStatusBarView>
-        implements TunerService.Tunable {
-
-    private static final String STATUSBAR_EXTRA_PADDING_START =
-            "system:" + Settings.System.STATUSBAR_EXTRA_PADDING_START;
-    private static final String STATUSBAR_EXTRA_PADDING_TOP =
-            "system:" + Settings.System.STATUSBAR_EXTRA_PADDING_TOP;
-    private static final String STATUSBAR_EXTRA_PADDING_END =
-            "system:" + Settings.System.STATUSBAR_EXTRA_PADDING_END;
-
+public class KeyguardStatusBarViewController extends ViewController<KeyguardStatusBarView> {
     private static final String TAG = "KeyguardStatusBarViewController";
     private static final AnimationProperties KEYGUARD_HUN_PROPERTIES =
             new AnimationProperties().setDuration(StackStateAnimator.ANIMATION_DURATION_STANDARD);
@@ -179,7 +169,6 @@ public class KeyguardStatusBarViewController extends ViewController<KeyguardStat
     private final OccludedToLockscreenTransitionViewModel mOccludedToLockscreenTransitionViewModel;
     private final DreamViewModel mDreamViewModel;
     private final KeyguardInteractor mKeyguardInteractor;
-    private final TunerService mTunerService;
     private final AxDynamicBarChipViewModel mAxDynamicBarChipViewModel;
 
     @Nullable private ComposeView mBatteryComposeView;
@@ -406,7 +395,6 @@ public class KeyguardStatusBarViewController extends ViewController<KeyguardStat
             OccludedToLockscreenTransitionViewModel occludedToLockscreenTransitionViewModel,
             DreamViewModel dreamViewModel,
             KeyguardInteractor keyguardInteractor,
-            TunerService tunerService,
             AxDynamicBarChipViewModel axDynamicBarChipViewModel
     ) {
         super(view);
@@ -444,7 +432,6 @@ public class KeyguardStatusBarViewController extends ViewController<KeyguardStat
         mOccludedToLockscreenTransitionViewModel = occludedToLockscreenTransitionViewModel;
         mDreamViewModel = dreamViewModel;
         mKeyguardInteractor = keyguardInteractor;
-        mTunerService = tunerService;
         mAxDynamicBarChipViewModel = axDynamicBarChipViewModel;
 
         mFirstBypassAttempt = mKeyguardBypassController.getBypassEnabled();
@@ -531,9 +518,6 @@ public class KeyguardStatusBarViewController extends ViewController<KeyguardStat
                 false,
                 mVolumeSettingObserver,
                 UserHandle.USER_ALL);
-        mTunerService.addTunable(this, STATUSBAR_EXTRA_PADDING_START);
-        mTunerService.addTunable(this, STATUSBAR_EXTRA_PADDING_TOP);
-        mTunerService.addTunable(this, STATUSBAR_EXTRA_PADDING_END);
         updateUserSwitcher();
         onThemeChanged();
         if (!Flags.glanceableHubV2()) {
@@ -615,21 +599,6 @@ public class KeyguardStatusBarViewController extends ViewController<KeyguardStat
                 mSystemIconsContainer.removeView(mBatteryComposeView);
             }
         }
-        mTunerService.removeTunable(this);
-    }
-
-    @Override
-    public void onTuningChanged(String key, String newValue) {
-        switch (key) {
-            case STATUSBAR_EXTRA_PADDING_START:
-            case STATUSBAR_EXTRA_PADDING_TOP:
-            case STATUSBAR_EXTRA_PADDING_END:
-                mView.loadDimens();
-                mView.updatePaddings();
-                break;
-            default:
-                break;
-         }
     }
 
     /** Should be called when the theme changes. */
