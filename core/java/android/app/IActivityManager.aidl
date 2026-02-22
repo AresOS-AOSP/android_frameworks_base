@@ -1069,10 +1069,6 @@ interface IActivityManager {
      */
     boolean shouldForceCutoutFullscreen(in String packageName);
 
-    void releaseMemory(int minAdj, int maxKillCount, boolean includeUIProcesses, boolean skipCamera);
-
-    void compactAllSystem();
-
     String getSpoofPifConfig();
 
     String getSpoofPifSpoofPhotos();

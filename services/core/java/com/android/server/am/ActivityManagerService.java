@@ -5408,14 +5408,10 @@ public class ActivityManagerService extends IActivityManager.Stub
                                 String data, Bundle extras, boolean ordered,
                                 boolean sticky, int sendingUser) {
                             mBootCompletedTimestamp = SystemClock.uptimeMillis();
-                            mHandler.postDelayed(() -> {
-                                synchronized (mProcLock) {
-                                    mCachedAppOptimizer.compactAllSystem();
-                                }
-                            }, 300000);
                             // Defer the full Pss collection as the system is really busy now.
                             mHandler.postDelayed(() -> {
                                 synchronized (mProcLock) {
+                                    mCachedAppOptimizer.compactAllSystem();
                                     mAppProfiler.requestPssAllProcsLPr(
                                             SystemClock.uptimeMillis(), true, false);
                                 }
@@ -20063,78 +20059,5 @@ public class ActivityManagerService extends IActivityManager.Stub
     @Override
     public boolean shouldForceCutoutFullscreen(String packageName) {
         return mActivityTaskManager.shouldForceCutoutFullscreen(packageName);
-    }
-
-    @Override
-    public void releaseMemory(int minAdj, int maxKillCount,
-                              boolean includeUIProcesses, boolean skipCamera) {
-        if (minAdj <= 0) return;
-
-        final int currentUser = mUserController.getCurrentUserId();
-        final ArrayList<ProcessRecord> victims = new ArrayList<>();
-
-        synchronized (this) {
-            synchronized (mProcLock) {
-                mProcessList.forEachLruProcessesLOSP(false, proc -> {
-                    if (proc == null || proc.getThread() == null) return;
-
-                    final int setAdj = proc.getSetAdj();
-                    final int state = proc.getSetProcState();
-
-                    // Exclusions
-                    if (proc.isPersistent()) return;
-                    if (proc.userId != currentUser) return;
-                    if (state <= ActivityManager.PROCESS_STATE_IMPORTANT_FOREGROUND) return;
-                    if (state == ActivityManager.PROCESS_STATE_HOME) return;
-                    if (!includeUIProcesses && proc.hasActivities()) return;
-
-                    if (setAdj >= minAdj) victims.add(proc);
-                });
-            }
-        }
-
-        victims.sort((a, b) -> Integer.compare(b.getSetAdj(), a.getSetAdj()));
-
-        int killed = 0;
-        for (ProcessRecord proc : victims) {
-            if (killed >= maxKillCount) break;
-            final String reason = "screen-on memory reclaim";
-            mHandler.post(() -> {
-                synchronized (ActivityManagerService.this) {
-                    proc.killLocked(reason,
-                            ApplicationExitInfo.REASON_OTHER,
-                            ApplicationExitInfo.SUBREASON_MEMORY_PRESSURE, true);
-                }
-            });
-            killed++;
-        }
-    }
-
-    @Override
-    public void compactAllSystem() {
-        mHandler.post(() -> {
-            synchronized (mProcLock) {
-                mCachedAppOptimizer.compactAllSystem();
-            }
-        });
-    }
-
-    public class ProcessComparator implements Comparator<ProcessToKill> {
-        @Override
-        public int compare(ProcessToKill p1, ProcessToKill p2) {
-            return Integer.compare(p2.adj, p1.adj);
-        }
-    }
-
-    public static final class ProcessToKill {
-        public int adj;
-        public String name; 
-        public int pid;
-
-        public ProcessToKill(int pid, int adj, String name) {
-            this.pid = pid;
-            this.adj = adj;
-            this.name = name;
-        }
     }
 }
