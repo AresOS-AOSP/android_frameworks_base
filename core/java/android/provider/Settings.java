@@ -7036,21 +7036,6 @@ public final class Settings {
         public static final String WIFI_STANDARD_ICON = "wifi_standard_icon";
 
         /**
-         * @hide
-         */
-        public static final String STATUSBAR_EXTRA_PADDING_START = "statusbar_extra_padding_start";
-
-        /**
-         * @hide
-         */
-        public static final String STATUSBAR_EXTRA_PADDING_TOP = "statusbar_extra_padding_top";
-
-        /**
-         * @hide
-         */
-        public static final String STATUSBAR_EXTRA_PADDING_END = "statusbar_extra_padding_end";
-
-        /**
          * Whether to use the custom status bar header or not
          * @hide
          */
