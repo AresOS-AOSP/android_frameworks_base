@@ -26,7 +26,11 @@ import com.android.systemui.shade.ui.ShadeColors
 object BouncerColors {
     @JvmStatic
     fun Context.surfaceColor(blurSupported: Boolean): Int {
-        return ShadeColors.shadePanel(context = this, blurSupported = blurSupported, withScrim = true)
+        return if (blurSupported) {
+            ShadeColors.shadePanel(context = this, blurSupported = blurSupported, withScrim = true)
+        } else {
+            getColor(color.bouncer_fallback_bg)
+        }
     }
 
     @JvmStatic
