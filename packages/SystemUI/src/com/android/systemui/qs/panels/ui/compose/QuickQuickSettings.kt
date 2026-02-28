@@ -60,6 +60,9 @@ fun ContentScope.QuickQuickSettings(
         Settings.System.getInt(context.contentResolver, Settings.System.QS_USE_MODIFIED_TILE_SPACING, 0) == 1
     }
 
+    val bounceables = remember(sizedTiles) { List(sizedTiles.size) { BounceableTileViewModel() } }
+    val spans by remember(sizedTiles) { derivedStateOf { sizedTiles.fastMap { it.width } } }
+
     Box(modifier = modifier) {
         GridAnchor()
 
@@ -88,10 +91,6 @@ fun ContentScope.QuickQuickSettings(
                 )
             }
         } else {
-            val bounceables =
-                remember(sizedTiles) { List(sizedTiles.size) { BounceableTileViewModel() } }
-            val spans by remember(sizedTiles) { derivedStateOf { sizedTiles.fastMap { it.width } } }
-            
             VerticalSpannedGrid(
                 columns = columns,
                 columnSpacing = if (useModifiedSpacing) {
