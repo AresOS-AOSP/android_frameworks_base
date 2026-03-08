@@ -422,7 +422,7 @@ public class ScrimView extends View {
 
     private boolean isSingleQsToneEnabled() {
         return Settings.System.getIntForUser(getContext().getContentResolver(),
-            Settings.System.SINGLE_QS_TONE_ENABLED, 0, UserHandle.USER_CURRENT) == 1;
+            Settings.System.SINGLE_QS_TONE_ENABLED, 1, UserHandle.USER_CURRENT) == 1;
     }
 
     private boolean isNotificationScrim() {
