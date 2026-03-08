@@ -663,7 +663,7 @@ fun rememberAxTileStyle(): Boolean {
     fun readAxStyle(): Boolean {
         return try {
             Settings.System.getIntForUser(
-                contentResolver, Settings.System.QS_TILE_STYLE_MINIMAL, 0,
+                contentResolver, Settings.System.QS_TILE_STYLE_MINIMAL, 1,
                 UserHandle.USER_CURRENT
             ) != 0
         } catch (_: Throwable) {
