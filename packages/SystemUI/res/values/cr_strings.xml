@@ -297,4 +297,8 @@
 
     <!-- Screen record dialog -->
     <string name="screenrecord_keep_screen_awake_label">Keep the screen awake</string>
+
+    <!-- Essential Notifications -->
+    <string name="essential_notifications_title">Essentials</string>
+    <string name="essential_notifications_summary">Important messages and alerts</string>
 </resources>
