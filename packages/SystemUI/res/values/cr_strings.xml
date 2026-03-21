@@ -279,4 +279,7 @@
 
     <!-- Screenshot -->
     <string name="quick_settings_screenshot_label">Screenshot</string>
+
+    <!-- Internet -->
+    <string name="status_bar_settings_network_speed">Internet speed</string>
 </resources>
