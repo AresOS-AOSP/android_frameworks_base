@@ -127,6 +127,7 @@ import com.android.systemui.shared.system.QuickStepContract.SystemUiStateFlags;
 import com.android.systemui.shared.system.actioncorner.ActionCornerConstants.Action;
 import com.android.systemui.shared.system.smartspace.ISysuiUnlockAnimationController;
 import com.android.systemui.statusbar.CommandQueue;
+import com.android.systemui.util.TapPositionUtil;
 import com.android.systemui.statusbar.NotificationShadeWindowController;
 import com.android.systemui.statusbar.phone.StatusBarWindowCallback;
 import com.android.systemui.statusbar.policy.CallbackController;
@@ -527,8 +528,11 @@ public class LauncherProxyService implements CallbackController<LauncherProxyLis
 
         @Override
         public void onSleepEvent(MotionEvent event) {
+            final int eX = (int) event.getX();
+            final int eY = (int) event.getY();
             verifyCallerAndClearCallingIdentity("onSleepEvent", () -> {
                 mHandler.post(() -> {
+                    TapPositionUtil.INSTANCE().setTapPos(eX, eY);
                     mContext.getSystemService(PowerManager.class)
                             .goToSleep(event.getEventTime());
                     event.recycle();
