@@ -20,6 +20,7 @@ import static com.android.systemui.statusbar.phone.StatusBarIconHolder.TYPE_BIND
 import static com.android.systemui.statusbar.phone.StatusBarIconHolder.TYPE_ICON;
 import static com.android.systemui.statusbar.phone.StatusBarIconHolder.TYPE_MOBILE_NEW;
 import static com.android.systemui.statusbar.phone.StatusBarIconHolder.TYPE_WIFI_NEW;
+import static com.android.systemui.statusbar.phone.StatusBarIconHolder.TYPE_NETWORK_SPEED;
 
 import android.annotation.Nullable;
 import android.content.Context;
@@ -57,6 +58,7 @@ import com.android.systemui.statusbar.pipeline.shared.ui.view.ModernStatusBarVie
 import com.android.systemui.statusbar.pipeline.wifi.ui.WifiUiAdapter;
 import com.android.systemui.statusbar.pipeline.wifi.ui.view.ModernStatusBarWifiView;
 import com.android.systemui.statusbar.pipeline.wifi.ui.viewmodel.LocationBasedWifiViewModel;
+import com.android.systemui.statusbar.phone.StatusBarIconControllerImplEx;
 import com.android.systemui.util.Assert;
 
 import dagger.Lazy;
@@ -84,6 +86,7 @@ public class IconManager implements DemoModeCommandReceiver {
     private final Lazy<MobileUiAdapterKairos> mMobileUiAdapterKairos;
     private final KairosNetwork mKairosNetwork;
     private final CoroutineScope mAppScope;
+    protected final StatusBarIconControllerImplEx mIconControllerEx;
     private final MutableIntObjectMap<Job> mBindingJobs = new MutableIntObjectMap<>();
 
     /**
@@ -116,7 +119,8 @@ public class IconManager implements DemoModeCommandReceiver {
             Lazy<MobileUiAdapterKairos> mobileUiAdapterKairos,
             MobileContextProvider mobileContextProvider,
             KairosNetwork kairosNetwork,
-            CoroutineScope appScope
+            CoroutineScope appScope,
+            StatusBarIconControllerImplEx iconControllerEx
     ) {
         mGroup = group;
         mMobileContextProvider = mobileContextProvider;
@@ -124,6 +128,7 @@ public class IconManager implements DemoModeCommandReceiver {
         mLocation = location;
         mKairosNetwork = kairosNetwork;
         mAppScope = appScope;
+        mIconControllerEx = iconControllerEx;
 
         mNewIconStyle = Settings.System.getIntForUser(mContext.getContentResolver(),
             Settings.System.STATUSBAR_COLORED_ICONS, 0, UserHandle.USER_CURRENT) == 1;
@@ -188,6 +193,8 @@ public class IconManager implements DemoModeCommandReceiver {
             case TYPE_ICON -> addIcon(index, slot, blocked, holder.getIcon());
             case TYPE_WIFI_NEW -> addNewWifiIcon(index, slot);
             case TYPE_MOBILE_NEW -> addNewMobileIcon(index, slot, holder.getTag());
+            case TYPE_NETWORK_SPEED ->
+                    mIconControllerEx.addHolder(index, slot, mGroup, holder, blocked);
             case TYPE_BINDABLE ->
                 // Safe cast, since only BindableIconHolders can set this tag on themselves
                     addBindableIcon((BindableIconHolder) holder, index);
@@ -345,6 +352,9 @@ public class IconManager implements DemoModeCommandReceiver {
             case TYPE_WIFI_NEW:
             case TYPE_BINDABLE:
                 // Nothing, the new icons update themselves
+                return;
+            case TYPE_NETWORK_SPEED:
+                mIconControllerEx.onSetIconHolder(viewIndex, holder, mGroup);
                 return;
             default:
                 break;
