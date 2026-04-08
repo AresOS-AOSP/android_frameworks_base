@@ -18,7 +18,6 @@ package com.android.systemui.doze
 
 import android.content.Context
 import android.hardware.display.DisplayManager
-import android.media.AudioManager
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemProperties
@@ -57,15 +56,10 @@ class DozeScreenStateEx @Inject constructor(
     private var unlockAnimPlaying: Boolean = false
     private var curState: DozeMachine.State = DozeMachine.State.UNINITIALIZED
     private var screenStateConsumer: Consumer<Int>? = null
-    private var mutedForAnimation: Boolean = false
-    private val audioManager: AudioManager? =
-        context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-
     private val screenOffAnimationCallback = object : ScreenOffAnimationCallback() {
         override fun onAnimationStart() {
             ScrimUtils.get().setBarState(KEYGUARD)
             ScrimUtils.get().onDozingChanged(true)
-            muteMediaStream(true)
         }
         override fun onAnimationEnd() {
             unlockAnimPlaying = false
@@ -77,7 +71,6 @@ class DozeScreenStateEx @Inject constructor(
         }
 
         override fun onAnimationCancel() {
-            muteMediaStream(false)
         }
 
         override fun onAnimateInKeyguardEnd() {
@@ -117,23 +110,10 @@ class DozeScreenStateEx @Inject constructor(
             }
             DozeMachine.State.FINISH -> {
                 UnlockedScreenOffAnimationControllerExt.removeCallback(screenOffAnimationCallback)
-                muteMediaStream(false)
                 screenStateConsumer = null
             }
             else -> {}
         }
     }
 
-    private fun muteMediaStream(mute: Boolean) {
-        val am = audioManager ?: return
-        if (mute && !mutedForAnimation) {
-            if (am.isMusicActive) {
-                am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0)
-                mutedForAnimation = true
-            }
-        } else if (!mute && mutedForAnimation) {
-            am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0)
-            mutedForAnimation = false
-        }
-    }
 }
