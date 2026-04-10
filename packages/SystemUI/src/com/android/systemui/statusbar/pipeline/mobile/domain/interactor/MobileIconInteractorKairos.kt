@@ -153,8 +153,8 @@ interface MobileIconInteractorKairos {
     /** Whether to show the 4G icon instead of LTE. */
     val shouldShowFourgIcon: State<Boolean>
 
-    /** True if stacked mobile icons should be disabled */
-    val disableStackedMobileIcons: State<Boolean>
+    /** True if stacked mobile icons should be enabled */
+    val enableStackedMobileIcons: State<Boolean>
 }
 
 /** Interactor for a single mobile connection. This connection _should_ have one subscription ID */
@@ -422,8 +422,8 @@ class MobileIconInteractorKairosImpl(
     private val SHOW_FOURG_ICON: String =
             "system:" + Settings.System.SHOW_FOURG_ICON
 
-    private final val DISABLE_STACKED_MOBILE_ICONS: String =
-            "system:" + Settings.System.DISABLE_STACKED_MOBILE_ICONS
+    private final val ENABLE_STACKED_MOBILE_ICONS: String =
+            "system:" + Settings.System.ENABLE_STACKED_MOBILE_ICONS
 
     override val shouldShowFourgIcon: State<Boolean> = buildState {
         callbackFlow {
@@ -443,23 +443,23 @@ class MobileIconInteractorKairosImpl(
             .toState(initialValue = false)
     }
 
-    private val _disableStackedMobileIcons: State<Boolean> = buildState {
+    private val _enableStackedMobileIcons: State<Boolean> = buildState {
         callbackFlow {
                 val callback =
                     object : TunerService.Tunable {
                         override fun onTuningChanged(key: String, newValue: String?) {
                             when (key) {
-                                DISABLE_STACKED_MOBILE_ICONS ->
-                                    trySend(TunerService.parseIntegerSwitch(newValue, false))
+                                ENABLE_STACKED_MOBILE_ICONS ->
+                                    trySend(TunerService.parseIntegerSwitch(newValue, true))
                             }
                         }
                     }
-                Dependency.get(TunerService::class.java).addTunable(callback, DISABLE_STACKED_MOBILE_ICONS)
+                Dependency.get(TunerService::class.java).addTunable(callback, ENABLE_STACKED_MOBILE_ICONS)
 
                 awaitClose { Dependency.get(TunerService::class.java).removeTunable(callback) }
             }
-            .toState(initialValue = false)
+            .toState(initialValue = true)
     }
 
-    override val disableStackedMobileIcons: State<Boolean> = _disableStackedMobileIcons
+    override val enableStackedMobileIcons: State<Boolean> = _enableStackedMobileIcons
 }

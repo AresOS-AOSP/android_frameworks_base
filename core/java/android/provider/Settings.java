@@ -7012,7 +7012,7 @@ public final class Settings {
         /**
          * @hide
          */
-        public static final String DISABLE_STACKED_MOBILE_ICONS = "disable_stacked_mobile_icons";
+        public static final String ENABLE_STACKED_MOBILE_ICONS = "enable_stacked_mobile_icons";
 
         /**
          * @hide

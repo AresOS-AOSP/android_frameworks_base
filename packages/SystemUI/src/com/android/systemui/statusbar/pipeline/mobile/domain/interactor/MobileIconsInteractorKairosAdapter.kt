@@ -263,8 +263,8 @@ constructor(
             override val shouldShowFourgIcon: StateFlow<Boolean> = latest { shouldShowFourgIcon }
                 .stateIn(scope, SharingStarted.WhileSubscribed(), false)
 
-            override val disableStackedMobileIcons: StateFlow<Boolean> = latest { disableStackedMobileIcons }
-                .stateIn(scope, SharingStarted.WhileSubscribed(), false) 
+            override val enableStackedMobileIcons: StateFlow<Boolean> = latest { enableStackedMobileIcons }
+                .stateIn(scope, SharingStarted.WhileSubscribed(), true)
 
             private fun <T> latest(block: MobileIconInteractor.() -> Flow<T>): Flow<T> =
                 interactorsBySubId.flatMapLatestConflated { it[subId]?.block() ?: emptyFlow() }

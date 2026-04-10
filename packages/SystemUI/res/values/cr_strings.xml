@@ -292,6 +292,6 @@
     <string name="qs_volume_dialog_title">Volume Control</string>
     <string name="qs_volume_dialog_mute">Mute</string>
 
-    <!-- Disable stacked mobile icons -->
-    <string name="disable_stacked_mobile_icons_title">Disable combined data icon</string>
+    <!-- Stacked mobile icons -->
+    <string name="enable_stacked_mobile_icons_title">Combined data icon</string>
 </resources>

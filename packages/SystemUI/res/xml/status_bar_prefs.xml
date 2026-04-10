@@ -148,9 +148,9 @@
 
     <com.android.systemui.tuner.TunerSwitch
         android:icon="@drawable/ic_signal"
-        android:key="system:disable_stacked_mobile_icons"
-        android:title="@string/disable_stacked_mobile_icons_title"
-        sysui:defValue="false" />
+        android:key="system:enable_stacked_mobile_icons"
+        android:title="@string/enable_stacked_mobile_icons_title"
+        sysui:defValue="true" />
 
     <!-- other weird signal stuff -->
 

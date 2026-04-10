@@ -326,11 +326,11 @@ constructor(
                 iconsList.size != 2 -> flowOf(false)
                 else -> {
                     combine(
-                        iconsList[0].disableStackedMobileIcons,
+                        iconsList[0].enableStackedMobileIcons,
                         iconsList[0].signalLevelIcon,
                         iconsList[1].signalLevelIcon
-                    ) { disableStacking, icon0, icon1 ->
-                        !disableStacking &&
+                    ) { enableStacking, icon0, icon1 ->
+                        enableStacking &&
                         icon0 is SignalIconModel.Cellular &&
                         icon1 is SignalIconModel.Cellular &&
                         icon0.numberOfLevels == icon1.numberOfLevels
