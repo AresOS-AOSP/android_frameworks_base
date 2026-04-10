@@ -322,10 +322,10 @@ constructor(
                     }
             },
             icons.flatMap { iconsBySubId ->
-                iconsBySubId.values.firstOrNull()?.disableStackedMobileIcons ?: stateOf(false)
+                iconsBySubId.values.firstOrNull()?.enableStackedMobileIcons ?: stateOf(true)
             }
-        ) { shouldStack, disableStacking ->
-            shouldStack && !disableStacking
+        ) { shouldStack, enableStacking ->
+            shouldStack && enableStacking
         }
     } else {
         stateOf(false)
