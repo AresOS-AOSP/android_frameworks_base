@@ -250,15 +250,9 @@ fun BrightnessSlider(
         val axIconRes = if (autoMode) R.drawable.ic_qs_brightness_auto_on else iconRes
         val axIconSize = 56.dp
         val iconTapScope = rememberCoroutineScope()
-        val axGradientTrackColor: Color = if (brightnessGradient != null) {
-            val mode = rememberGradientColorMode()
-            if (mode == 1) rememberGradientCustomColors().first
-            else MaterialTheme.colorScheme.primary
-        } else {
-            CustomColorScheme.current.qsTileColor
-        }
         val sliderColors = PlatformSliderDefaults.defaultPlatformSliderColors().copy(
-            trackColor = axGradientTrackColor,
+            trackColor = CustomColorScheme.current.qsTileColor,
+            indicatorBrush = brightnessGradient?.brush,
         )
 
         Box(modifier = modifier) {

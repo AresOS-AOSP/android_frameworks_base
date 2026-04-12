@@ -50,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.clipPath
@@ -270,12 +271,14 @@ private fun TrackBackground(
             colors.getTrackColor(enabled),
             label = "PlatformSliderTrackColorAnimation",
         )
+    val trackBrush = colors.getTrackBrush(enabled)
 
     val indicatorColor by
         animateColorAsState(
             colors.getIndicatorColor(enabled),
             label = "PlatformSliderIndicatorColorAnimation",
         )
+    val indicatorBrush = colors.getIndicatorBrush(enabled)
     Canvas(modifier.fillMaxSize()) {
         val trackCornerRadius = CornerRadius(size.height / 2, size.height / 2)
         val trackPath = Path()
@@ -288,7 +291,11 @@ private fun TrackBackground(
                 cornerRadius = trackCornerRadius,
             )
         )
-        drawPath(path = trackPath, color = trackColor)
+        if (trackBrush != null) {
+            drawPath(path = trackPath, brush = trackBrush)
+        } else {
+            drawPath(path = trackPath, color = trackColor)
+        }
 
         val indicatorCornerRadius = CornerRadius(indicatorRadiusDp.toPx(), indicatorRadiusDp.toPx())
         clipPath(trackPath) {
@@ -305,7 +312,11 @@ private fun TrackBackground(
                     bottomLeftCornerRadius = trackCornerRadius,
                 )
             )
-            drawPath(path = indicatorPath, color = indicatorColor)
+            if (indicatorBrush != null) {
+                drawPath(path = indicatorPath, brush = indicatorBrush)
+            } else {
+                drawPath(path = indicatorPath, color = indicatorColor)
+            }
         }
     }
 }
@@ -447,6 +458,10 @@ data class PlatformSliderColors(
     val disabledIndicatorColor: Color,
     val disabledIconColor: Color,
     val disabledLabelColor: Color,
+    val trackBrush: Brush? = null,
+    val indicatorBrush: Brush? = null,
+    val disabledTrackBrush: Brush? = null,
+    val disabledIndicatorBrush: Brush? = null,
 )
 
 object PlatformSliderDefaults {
@@ -472,8 +487,14 @@ object PlatformSliderDefaults {
 private fun PlatformSliderColors.getTrackColor(isEnabled: Boolean): Color =
     if (isEnabled) trackColor else disabledTrackColor
 
+private fun PlatformSliderColors.getTrackBrush(isEnabled: Boolean): Brush? =
+    if (isEnabled) trackBrush else disabledTrackBrush
+
 private fun PlatformSliderColors.getIndicatorColor(isEnabled: Boolean): Color =
     if (isEnabled) indicatorColor else disabledIndicatorColor
+
+private fun PlatformSliderColors.getIndicatorBrush(isEnabled: Boolean): Brush? =
+    if (isEnabled) indicatorBrush else disabledIndicatorBrush
 
 private fun PlatformSliderColors.getLabelColor(
     isEnabled: Boolean,
