@@ -20066,4 +20066,49 @@ public class ActivityManagerService extends IActivityManager.Stub
     public boolean shouldForceCutoutFullscreen(String packageName) {
         return mActivityTaskManager.shouldForceCutoutFullscreen(packageName);
     }
+
+    @Override
+    public void releaseMemory(int minAdj, int maxKillCount,
+                              boolean includeUIProcesses, boolean skipCamera) {
+        if (minAdj <= 0) return;
+
+        final int currentUser = mUserController.getCurrentUserId();
+        final ArrayList<ProcessRecord> victims = new ArrayList<>();
+
+        synchronized (this) {
+            synchronized (mProcLock) {
+                mProcessList.forEachLruProcessesLOSP(false, proc -> {
+                    if (proc == null || proc.getThread() == null) return;
+
+                    final int setAdj = proc.getSetAdj();
+                    final int state = proc.getSetProcState();
+
+                    // Exclusions
+                    if (proc.isPersistent()) return;
+                    if (proc.userId != currentUser) return;
+                    if (state <= ActivityManager.PROCESS_STATE_IMPORTANT_FOREGROUND) return;
+                    if (state == ActivityManager.PROCESS_STATE_HOME) return;
+                    if (!includeUIProcesses && proc.hasActivities()) return;
+
+                    if (setAdj >= minAdj) victims.add(proc);
+                });
+            }
+        }
+
+        victims.sort((a, b) -> Integer.compare(b.getSetAdj(), a.getSetAdj()));
+
+        int killed = 0;
+        for (ProcessRecord proc : victims) {
+            if (killed >= maxKillCount) break;
+            final String reason = "memory reclaim";
+            mHandler.post(() -> {
+                synchronized (ActivityManagerService.this) {
+                    proc.killLocked(reason,
+                            ApplicationExitInfo.REASON_OTHER,
+                            ApplicationExitInfo.SUBREASON_MEMORY_PRESSURE, true);
+                }
+            });
+            killed++;
+        }
+    }
 }
