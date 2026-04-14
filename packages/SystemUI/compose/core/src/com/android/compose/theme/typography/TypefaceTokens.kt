@@ -29,6 +29,7 @@ internal class TypefaceTokens(typefaceNames: TypefaceNames) {
     companion object {
         val WeightMedium = FontWeight.Medium
         val WeightRegular = FontWeight.Normal
+        val WeightSemiBold = FontWeight.SemiBold
     }
 
     private val brandFont = DeviceFontFamilyName(typefaceNames.brand)
@@ -68,21 +69,21 @@ internal class TypefaceTokens(typefaceNames: TypefaceNames) {
             Font(plainFont, weight = WeightRegular),
         )
 
-    val displayLargeEmphasized = FontFamily(Font(displayLargeEmphasizedFont))
-    val displayMediumEmphasized = FontFamily(Font(displayMediumEmphasizedFont))
-    val displaySmallEmphasized = FontFamily(Font(displaySmallEmphasizedFont))
-    val headlineLargeEmphasized = FontFamily(Font(headlineLargeEmphasizedFont))
-    val headlineMediumEmphasized = FontFamily(Font(headlineMediumEmphasizedFont))
-    val headlineSmallEmphasized = FontFamily(Font(headlineSmallEmphasizedFont))
-    val titleLargeEmphasized = FontFamily(Font(titleLargeEmphasizedFont))
-    val titleMediumEmphasized = FontFamily(Font(titleMediumEmphasizedFont))
-    val titleSmallEmphasized = FontFamily(Font(titleSmallEmphasizedFont))
-    val bodyLargeEmphasized = FontFamily(Font(bodyLargeEmphasizedFont))
-    val bodyMediumEmphasized = FontFamily(Font(bodyMediumEmphasizedFont))
-    val bodySmallEmphasized = FontFamily(Font(bodySmallEmphasizedFont))
-    val labelLargeEmphasized = FontFamily(Font(labelLargeEmphasizedFont))
-    val labelMediumEmphasized = FontFamily(Font(labelMediumEmphasizedFont))
-    val labelSmallEmphasized = FontFamily(Font(labelSmallEmphasizedFont))
+    val displayLargeEmphasized = FontFamily(Font(displayLargeEmphasizedFont, WeightMedium))
+    val displayMediumEmphasized = FontFamily(Font(displayMediumEmphasizedFont, WeightMedium))
+    val displaySmallEmphasized = FontFamily(Font(displaySmallEmphasizedFont, WeightMedium))
+    val headlineLargeEmphasized = FontFamily(Font(headlineLargeEmphasizedFont, WeightMedium))
+    val headlineMediumEmphasized = FontFamily(Font(headlineMediumEmphasizedFont, WeightMedium))
+    val headlineSmallEmphasized = FontFamily(Font(headlineSmallEmphasizedFont, WeightMedium))
+    val titleLargeEmphasized = FontFamily(Font(titleLargeEmphasizedFont, WeightMedium))
+    val titleMediumEmphasized = FontFamily(Font(titleMediumEmphasizedFont, WeightSemiBold))
+    val titleSmallEmphasized = FontFamily(Font(titleSmallEmphasizedFont, WeightSemiBold))
+    val bodyLargeEmphasized = FontFamily(Font(bodyLargeEmphasizedFont, WeightMedium))
+    val bodyMediumEmphasized = FontFamily(Font(bodyMediumEmphasizedFont, WeightMedium))
+    val bodySmallEmphasized = FontFamily(Font(bodySmallEmphasizedFont, WeightMedium))
+    val labelLargeEmphasized = FontFamily(Font(labelLargeEmphasizedFont, WeightSemiBold))
+    val labelMediumEmphasized = FontFamily(Font(labelMediumEmphasizedFont, WeightSemiBold))
+    val labelSmallEmphasized = FontFamily(Font(labelSmallEmphasizedFont, WeightSemiBold))
 }
 
 internal data class TypefaceNames
