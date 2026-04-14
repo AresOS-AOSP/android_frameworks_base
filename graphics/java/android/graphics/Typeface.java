@@ -1389,6 +1389,9 @@ public class Typeface {
 
     /** @hide */
     public static Typeface getOverrideTypeface(@NonNull String familyName) {
+        if (DEFAULT.mPendingTypeface != null && DEFAULT.mPendingTypeface.get() == null) {
+            return getSystemDefaultTypeface(familyName);
+        }
         Typeface tf = FontController.getOverrideTypeface(familyName);
         return tf == null ? getSystemDefaultTypeface(familyName) : tf;
     }
@@ -1600,19 +1603,34 @@ public class Typeface {
 
     /** @hide */
     public static void changeFont() {
+        synchronized (sStyledCacheLock) {
+            sStyledTypefaceCache.clear();
+        }
+        synchronized (sWeightCacheLock) {
+            sWeightTypefaceCache.clear();
+        }
         synchronized (sDynamicCacheLock) {
             sDynamicTypefaceCache.evictAll();
         }
+        synchronized (sVariableCacheLock) {
+            sVariableCache.evictAll();
+        }
 
-        String fontFamily = FontController.getCurrentFontFamily();
+        FontController.clearCaches();
 
-        sFontName = fontFamily;
+        sFontName = FontController.getBodyFont();
 
-        Typeface tf = getOverrideTypeface(sFontName);
+        Typeface base = sSystemFontMap.get(sFontName);
+        if (base == null) base = sSystemFontMap.get(DEFAULT_FAMILY);
+        if (base == null) return;
 
-        Typeface tfBold = create(tf, BOLD);
-        Typeface tfItalic = create(tf, ITALIC);
-        Typeface tfItalicBold = create(tf, BOLD_ITALIC);
+        sDefaultTypeface = base;
+
+        Typeface tf = create(base, NORMAL);
+
+        Typeface tfBold = create(base, BOLD);
+        Typeface tfItalic = create(base, ITALIC);
+        Typeface tfItalicBold = create(base, BOLD_ITALIC);
 
         nativeForceSetStaticFinalField("DEFAULT", tf);
         nativeForceSetStaticFinalField("DEFAULT_BOLD", tfBold);
