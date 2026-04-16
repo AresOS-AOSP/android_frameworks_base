@@ -20086,6 +20086,7 @@ public class ActivityManagerService extends IActivityManager.Stub
                     // Exclusions
                     if (proc.isPersistent()) return;
                     if (proc.userId != currentUser) return;
+                    if (skipCamera && isCameraActiveForUid(proc.uid)) return;
                     if (state <= ActivityManager.PROCESS_STATE_IMPORTANT_FOREGROUND) return;
                     if (state == ActivityManager.PROCESS_STATE_HOME) return;
                     if (!includeUIProcesses && proc.hasActivities()) return;
@@ -20097,15 +20098,15 @@ public class ActivityManagerService extends IActivityManager.Stub
 
         victims.sort((a, b) -> Integer.compare(b.getSetAdj(), a.getSetAdj()));
 
+        final String reason = "release memory";
         int killed = 0;
         for (ProcessRecord proc : victims) {
             if (killed >= maxKillCount) break;
-            final String reason = "memory reclaim";
             mHandler.post(() -> {
                 synchronized (ActivityManagerService.this) {
                     proc.killLocked(reason,
-                            ApplicationExitInfo.REASON_OTHER,
-                            ApplicationExitInfo.SUBREASON_MEMORY_PRESSURE, true);
+                            ApplicationExitInfo.REASON_USER_REQUESTED,
+                            ApplicationExitInfo.SUBREASON_KILL_BACKGROUND, true);
                 }
             });
             killed++;
