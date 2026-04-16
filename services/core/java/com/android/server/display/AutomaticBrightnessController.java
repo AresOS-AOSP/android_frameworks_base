@@ -579,6 +579,13 @@ public class AutomaticBrightnessController {
             return false;
         }
         mCurrentBrightnessMapper.addUserDataPoint(lux, brightness);
+        if (mCurrentBrightnessMapper.getMode() == AUTO_BRIGHTNESS_MODE_DEFAULT
+                && !Float.isNaN(mScreenAutoBrightness)
+                && mScreenAutoBrightness >= PowerManager.BRIGHTNESS_MIN
+                && mScreenAutoBrightness <= PowerManager.BRIGHTNESS_MAX) {
+            mCurrentBrightnessMapper.addAdaptiveUserDataPoint(lux, mScreenAutoBrightness,
+                    brightness);
+        }
         mShortTermModel.setUserBrightness(lux, brightness);
         return true;
     }

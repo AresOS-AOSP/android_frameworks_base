@@ -298,6 +298,10 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
     // The unique ID of the primary display device currently tied to this logical display
     private String mUniqueDisplayId;
     private String mPhysicalDisplayName;
+    @Nullable
+    private BrightnessMappingStrategy mDefaultModeBrightnessMapper;
+    @UserIdInt
+    private int mCurrentUserId;
 
     // Tracker for brightness changes.
     @Nullable
@@ -581,6 +585,7 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
 
         mLastBrightnessEvent = new BrightnessEvent(mDisplayId);
         mTempBrightnessEvent = new BrightnessEvent(mDisplayId);
+        mCurrentUserId = ActivityManager.getCurrentUser();
 
         if (flags.isBatteryStatsEnabledForAllDisplays()
                 && isDisplaySupportedForBatteryStats(displayDeviceInfo)) {
@@ -758,6 +763,7 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
     private void handleOnSwitchUser(@UserIdInt int newUserId, int userSerial, float newBrightness) {
         Slog.i(mTag, "Switching user newUserId=" + newUserId + " userSerial=" + userSerial
                 + " newBrightness=" + newBrightness);
+        mCurrentUserId = newUserId;
 
         if (mAutomaticBrightnessController != null) {
             int autoBrightnessPreset = Settings.System.getIntForUser(mContext.getContentResolver(),
@@ -769,18 +775,23 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
             }
         }
 
-        handleBrightnessModeChange();
         if (mBrightnessTracker != null) {
             mBrightnessTracker.onSwitchUser(newUserId);
         }
+        if (mAutomaticBrightnessController != null) {
+            mAutomaticBrightnessController.resetShortTermModel();
+        }
+        loadAdaptiveBrightnessLongTermModel(mDefaultModeBrightnessMapper);
+        if (mAutomaticBrightnessController != null) {
+            mAutomaticBrightnessController.update();
+        }
+
+        handleBrightnessModeChange();
         setBrightness(newBrightness, userSerial);
 
         // Don't treat user switches as user initiated change.
         mDisplayBrightnessController.setAndNotifyCurrentScreenBrightness(newBrightness);
 
-        if (mAutomaticBrightnessController != null) {
-            mAutomaticBrightnessController.resetShortTermModel();
-        }
         mBrightnessClamperController.onUserSwitch();
         sendUpdatePowerState();
     }
@@ -1120,6 +1131,7 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
         mUseSoftwareAutoBrightnessConfig = mDisplayDeviceConfig.isAutoBrightnessAvailable();
 
         if (!mUseSoftwareAutoBrightnessConfig) {
+            mDefaultModeBrightnessMapper = null;
             return;
         }
 
@@ -1128,6 +1140,8 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
         BrightnessMappingStrategy defaultModeBrightnessMapper =
                 mInjector.getDefaultModeBrightnessMapper(context, mDisplayDeviceConfig,
                         mDisplayWhiteBalanceController);
+        mDefaultModeBrightnessMapper = defaultModeBrightnessMapper;
+        loadAdaptiveBrightnessLongTermModel(defaultModeBrightnessMapper);
         brightnessMappers.append(AUTO_BRIGHTNESS_MODE_DEFAULT,
                 defaultModeBrightnessMapper);
 
@@ -1257,6 +1271,45 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
             }
         } else {
             mUseSoftwareAutoBrightnessConfig = false;
+            mDefaultModeBrightnessMapper = null;
+        }
+    }
+
+    private void loadAdaptiveBrightnessLongTermModel(
+            @Nullable BrightnessMappingStrategy brightnessMapper) {
+        if (brightnessMapper == null) {
+            return;
+        }
+        brightnessMapper.clearAdaptiveUserDataPoints();
+        if (mBrightnessTracker == null) {
+            return;
+        }
+
+        final ParceledListSlice<BrightnessChangeEvent> brightnessEvents =
+                mBrightnessTracker.getEvents(mCurrentUserId, false);
+        final java.util.List<BrightnessChangeEvent> events = brightnessEvents.getList();
+        for (int i = 0; i < events.size(); i++) {
+            final BrightnessChangeEvent event = events.get(i);
+            if (!mUniqueDisplayId.equals(event.uniqueDisplayId)
+                    || !event.isDefaultBrightnessConfig
+                    || event.luxValues == null
+                    || event.luxValues.length == 0) {
+                continue;
+            }
+
+            final float currentBrightness =
+                    brightnessMapper.getBrightnessFromAdjustedNits(event.lastBrightness);
+            final float desiredBrightness =
+                    brightnessMapper.getBrightnessFromAdjustedNits(event.brightness);
+            if (!BrightnessUtils.isValidBrightnessValue(currentBrightness)
+                    || !BrightnessUtils.isValidBrightnessValue(desiredBrightness)) {
+                continue;
+            }
+
+            brightnessMapper.addAdaptiveUserDataPoint(
+                    event.luxValues[event.luxValues.length - 1],
+                    currentBrightness,
+                    desiredBrightness);
         }
     }
 
