@@ -74,10 +74,13 @@ public abstract class BrightnessMappingStrategy {
     // MIN_PERMISSABLE_INCREASE. Otherwise when the brightness is set to 0, the curve will never
     // increase and will always be 0.
     private static final float MIN_PERMISSABLE_INCREASE =  0.004f;
-
+    private static final float ADAPTIVE_POINT_MIN_GAMMA_DELTA = 0.015f;
+    private static final float MAX_ADAPTIVE_POINT_WEIGHT = 4.0f;
     protected boolean mLoggingEnabled;
 
     private static final Plog PLOG = Plog.createSystemPlog(TAG);
+    private final ArrayList<AdaptiveBrightnessUserPoint> mAdaptiveBrightnessUserPoints =
+            new ArrayList<>();
 
     /**
      * Creates a BrightnessMapping strategy. We do not create a simple mapping strategy for idle
@@ -141,7 +144,8 @@ public abstract class BrightnessMappingStrategy {
             builder.setShortTermModelLowerLuxMultiplier(SHORT_TERM_MODEL_THRESHOLD_RATIO);
             builder.setShortTermModelUpperLuxMultiplier(SHORT_TERM_MODEL_THRESHOLD_RATIO);
             return new PhysicalMappingStrategy(builder.build(), nitsRange, brightnessRange,
-                    autoBrightnessAdjustmentMaxGamma, mode, preset, displayWhiteBalanceController);
+                    autoBrightnessAdjustmentMaxGamma, mode, preset,
+                    displayWhiteBalanceController);
         } else if (isValidMapping(luxLevels, brightnessLevels)) {
             return new SimpleMappingStrategy(luxLevels, brightnessLevels,
                     autoBrightnessAdjustmentMaxGamma, shortTermModelTimeout, mode, preset);
@@ -352,6 +356,12 @@ public abstract class BrightnessMappingStrategy {
     public abstract void addUserDataPoint(float lux, float brightness);
 
     /**
+     * Adds a long-term user preference point that biases the base curve around the given lux.
+     */
+    public abstract void addAdaptiveUserDataPoint(float lux, float currentBrightness,
+            float desiredBrightness);
+
+    /**
      * Removes any short term adjustments made to the curve from user interactions.
      *
      * Note that this does *not* reset the mapping to its initial state, any brightness
@@ -359,6 +369,9 @@ public abstract class BrightnessMappingStrategy {
      * effects of user interactions on the model.
      */
     public abstract void clearUserDataPoints();
+
+    /** Clears long-term learned user preferences. */
+    public abstract void clearAdaptiveUserDataPoints();
 
     /** @return True if there are any short term adjustments applied to the curve. */
     public abstract boolean hasUserDataPoints();
@@ -583,6 +596,11 @@ public abstract class BrightnessMappingStrategy {
         if (mLoggingEnabled) {
             PLOG.logCurve("gamma adjusted curve", newLux, newBrightness);
         }
+        if (hasAdaptiveUserDataPoints()) {
+            Pair<float[], float[]> curve = applyAdaptiveUserDataPoints(newLux, newBrightness);
+            newLux = curve.first;
+            newBrightness = curve.second;
+        }
         if (userLux != INVALID_LUX) {
             Pair<float[], float[]> curve = insertControlPoint(newLux, newBrightness, userLux,
                     userBrightness);
@@ -596,6 +614,163 @@ public abstract class BrightnessMappingStrategy {
             }
         }
         return Pair.create(newLux, newBrightness);
+    }
+
+    protected final boolean addAdaptiveUserDataPointInternal(float[] referenceLuxLevels, float lux,
+            float currentBrightness, float desiredBrightness) {
+        if (referenceLuxLevels == null || referenceLuxLevels.length == 0
+                || lux < 0 || Float.isNaN(lux)
+                || Float.isNaN(currentBrightness)
+                || Float.isNaN(desiredBrightness)) {
+            return false;
+        }
+        currentBrightness = MathUtils.constrain(currentBrightness,
+                PowerManager.BRIGHTNESS_MIN, PowerManager.BRIGHTNESS_MAX);
+        desiredBrightness = MathUtils.constrain(desiredBrightness,
+                PowerManager.BRIGHTNESS_MIN, PowerManager.BRIGHTNESS_MAX);
+
+        final float currentGamma = BrightnessUtils.convertLinearToGamma(currentBrightness);
+        final float desiredGamma = BrightnessUtils.convertLinearToGamma(desiredBrightness);
+        final float gammaDelta = desiredGamma - currentGamma;
+        if (Math.abs(gammaDelta) < ADAPTIVE_POINT_MIN_GAMMA_DELTA) {
+            return false;
+        }
+
+        final int mergeIndex = findAdaptiveUserPoint(referenceLuxLevels, lux);
+        AdaptiveBrightnessUserPoint point;
+        if (mergeIndex >= 0) {
+            final AdaptiveBrightnessUserPoint oldPoint =
+                    mAdaptiveBrightnessUserPoints.remove(mergeIndex);
+            final float newWeight = Math.min(oldPoint.mWeight + 1.0f,
+                    MAX_ADAPTIVE_POINT_WEIGHT);
+            point = new AdaptiveBrightnessUserPoint(
+                    mergeAdaptiveLux(oldPoint.mLux, lux, 1.0f / newWeight),
+                    BrightnessUtils.convertGammaToLinear(MathUtils.lerp(
+                            BrightnessUtils.convertLinearToGamma(oldPoint.mBrightness),
+                            desiredGamma, 1.0f / newWeight)),
+                    newWeight);
+        } else {
+            if (mAdaptiveBrightnessUserPoints.size() >= referenceLuxLevels.length) {
+                mAdaptiveBrightnessUserPoints.remove(findLeastConfidentAdaptiveUserPoint());
+            }
+            point = new AdaptiveBrightnessUserPoint(lux, desiredBrightness, 1.0f);
+        }
+        mAdaptiveBrightnessUserPoints.add(point);
+
+        if (mLoggingEnabled) {
+            Slog.d(TAG, "addAdaptiveUserDataPoint: lux=" + lux + " current="
+                    + currentBrightness + " desired=" + desiredBrightness + " points="
+                    + mAdaptiveBrightnessUserPoints.size());
+        }
+        return true;
+    }
+
+    protected final boolean clearAdaptiveUserDataPointsInternal() {
+        if (mAdaptiveBrightnessUserPoints.isEmpty()) {
+            return false;
+        }
+        mAdaptiveBrightnessUserPoints.clear();
+        return true;
+    }
+
+    protected final void dumpAdaptiveUserDataPoints(PrintWriter pw) {
+        pw.println("  adaptiveBrightnessUserPoints=" + mAdaptiveBrightnessUserPoints);
+    }
+
+    private boolean hasAdaptiveUserDataPoints() {
+        return !mAdaptiveBrightnessUserPoints.isEmpty();
+    }
+
+    private int findAdaptiveUserPoint(float[] referenceLuxLevels, float lux) {
+        final int targetBucket = getAdaptiveBucket(referenceLuxLevels, lux);
+        for (int i = 0; i < mAdaptiveBrightnessUserPoints.size(); i++) {
+            final AdaptiveBrightnessUserPoint point = mAdaptiveBrightnessUserPoints.get(i);
+            if (getAdaptiveBucket(referenceLuxLevels, point.mLux) == targetBucket) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private int findLeastConfidentAdaptiveUserPoint() {
+        int removeIndex = 0;
+        float minWeight = Float.MAX_VALUE;
+        for (int i = 0; i < mAdaptiveBrightnessUserPoints.size(); i++) {
+            final float weight = mAdaptiveBrightnessUserPoints.get(i).mWeight;
+            if (weight < minWeight) {
+                minWeight = weight;
+                removeIndex = i;
+            }
+        }
+        return removeIndex;
+    }
+
+    private Pair<float[], float[]> applyAdaptiveUserDataPoints(float[] lux, float[] brightness) {
+        float[] adjustedLux = lux;
+        float[] adjustedBrightness = Arrays.copyOf(brightness, brightness.length);
+        final ArrayList<AdaptiveBrightnessUserPoint> sortedPoints =
+                new ArrayList<>(mAdaptiveBrightnessUserPoints);
+        sortedPoints.sort((left, right) -> Float.compare(left.mLux, right.mLux));
+        if (mLoggingEnabled) {
+            PLOG.logCurve("pre-adaptive curve", adjustedLux, adjustedBrightness);
+        }
+        for (int i = 0; i < sortedPoints.size(); i++) {
+            final AdaptiveBrightnessUserPoint point = sortedPoints.get(i);
+            Pair<float[], float[]> curve = insertControlPoint(adjustedLux, adjustedBrightness,
+                    point.mLux, point.mBrightness);
+            adjustedLux = curve.first;
+            adjustedBrightness = curve.second;
+        }
+        if (mLoggingEnabled) {
+            PLOG.logCurve("adaptive adjusted curve", adjustedLux, adjustedBrightness);
+        }
+        return Pair.create(adjustedLux, adjustedBrightness);
+    }
+
+    private int getAdaptiveBucket(float[] referenceLuxLevels, float lux) {
+        if (referenceLuxLevels.length == 1) {
+            return 0;
+        }
+        final int insertionIndex = findInsertionPoint(referenceLuxLevels, lux);
+        if (insertionIndex == 0) {
+            return 0;
+        } else if (insertionIndex == referenceLuxLevels.length) {
+            return referenceLuxLevels.length - 1;
+        }
+        final float lowerLux = referenceLuxLevels[insertionIndex - 1];
+        final float upperLux = referenceLuxLevels[insertionIndex];
+        final float luxSignature = getAdaptiveLuxSignature(lux);
+        final float lowerDistance = Math.abs(luxSignature - getAdaptiveLuxSignature(lowerLux));
+        final float upperDistance = Math.abs(luxSignature - getAdaptiveLuxSignature(upperLux));
+        return lowerDistance <= upperDistance ? insertionIndex - 1 : insertionIndex;
+    }
+
+    private float mergeAdaptiveLux(float currentLux, float newLux, float interpolation) {
+        final float currentLogLux = getAdaptiveLuxSignature(currentLux);
+        final float newLogLux = getAdaptiveLuxSignature(newLux);
+        return (float) Math.max(0.0,
+                Math.pow(10.0, MathUtils.lerp(currentLogLux, newLogLux, interpolation)) - 1.0);
+    }
+
+    private float getAdaptiveLuxSignature(float lux) {
+        return (float) Math.log10(Math.max(1.0f, lux + 1.0f));
+    }
+
+    private static final class AdaptiveBrightnessUserPoint {
+        final float mLux;
+        final float mBrightness;
+        final float mWeight;
+
+        AdaptiveBrightnessUserPoint(float lux, float brightness, float weight) {
+            mLux = lux;
+            mBrightness = brightness;
+            mWeight = weight;
+        }
+
+        @Override
+        public String toString() {
+            return "{lux=" + mLux + ", brightness=" + mBrightness + ", weight=" + mWeight + "}";
+        }
     }
 
     /**
@@ -698,6 +873,22 @@ public abstract class BrightnessMappingStrategy {
         }
 
         @Override
+        public void addAdaptiveUserDataPoint(float lux, float currentBrightness,
+                float desiredBrightness) {
+            if (addAdaptiveUserDataPointInternal(mLux, lux, currentBrightness,
+                    desiredBrightness)) {
+                computeSpline();
+            }
+        }
+
+        @Override
+        public void clearAdaptiveUserDataPoints() {
+            if (clearAdaptiveUserDataPointsInternal()) {
+                computeSpline();
+            }
+        }
+
+        @Override
         public float convertToNits(float brightness) {
             return INVALID_NITS;
         }
@@ -783,6 +974,7 @@ public abstract class BrightnessMappingStrategy {
             pw.println("  mUserLux=" + mUserLux);
             pw.println("  mUserBrightness=" + mUserBrightness);
             pw.println("  mShortTermModelTimeout=" + mShortTermModelTimeout);
+            dumpAdaptiveUserDataPoints(pw);
         }
 
         @Override
@@ -812,7 +1004,9 @@ public abstract class BrightnessMappingStrategy {
         }
 
         private float getUnadjustedBrightness(float lux) {
-            Spline spline = Spline.createSpline(mLux, mBrightness);
+            Pair<float[], float[]> curve = getAdjustedCurve(mLux, mBrightness, INVALID_LUX,
+                    PowerManager.BRIGHTNESS_INVALID_FLOAT, mAutoBrightnessAdjustment, mMaxGamma);
+            Spline spline = Spline.createSpline(curve.first, curve.second);
             return spline.interpolate(lux);
         }
     }
@@ -986,6 +1180,22 @@ public abstract class BrightnessMappingStrategy {
         }
 
         @Override
+        public void addAdaptiveUserDataPoint(float lux, float currentBrightness,
+                float desiredBrightness) {
+            if (addAdaptiveUserDataPointInternal(mConfig.getCurve().first, lux, currentBrightness,
+                    desiredBrightness)) {
+                computeSpline();
+            }
+        }
+
+        @Override
+        public void clearAdaptiveUserDataPoints() {
+            if (clearAdaptiveUserDataPointsInternal()) {
+                computeSpline();
+            }
+        }
+
+        @Override
         public float convertToNits(float brightness) {
             return mBrightnessToNitsSpline.interpolate(brightness);
         }
@@ -1092,6 +1302,7 @@ public abstract class BrightnessMappingStrategy {
             pw.println("  mDefaultConfig=" + mDefaultConfig);
             pw.println("  mBrightnessRangeAdjustmentApplied=" + mBrightnessRangeAdjustmentApplied);
             pw.println("  shortTermModelTimeout=" + getShortTermModelTimeout());
+            dumpAdaptiveUserDataPoints(pw);
 
             if (!mPreviousBrightnessSplines.isEmpty()) {
                 pw.println("  Previous short-term models (oldest to newest): ");
@@ -1265,8 +1476,15 @@ public abstract class BrightnessMappingStrategy {
 
         private float getUnadjustedBrightness(float lux) {
             Pair<float[], float[]> curve = mConfig.getCurve();
-            Spline spline = Spline.createSpline(curve.first, curve.second);
-            return mAdjustedNitsToBrightnessSpline.interpolate(spline.interpolate(lux));
+            float[] defaultBrightness = new float[curve.second.length];
+            for (int i = 0; i < defaultBrightness.length; i++) {
+                defaultBrightness[i] = mAdjustedNitsToBrightnessSpline.interpolate(curve.second[i]);
+            }
+            Pair<float[], float[]> adjustedCurve = getAdjustedCurve(curve.first, defaultBrightness,
+                    INVALID_LUX, PowerManager.BRIGHTNESS_INVALID_FLOAT,
+                    mAutoBrightnessAdjustment, mMaxGamma);
+            Spline spline = Spline.createSpline(adjustedCurve.first, adjustedCurve.second);
+            return spline.interpolate(lux);
         }
 
         private float correctBrightness(float brightness, String packageName, int category) {
