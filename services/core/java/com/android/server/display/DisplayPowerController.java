@@ -147,6 +147,8 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
 
 
     private static final float SCREEN_ANIMATION_RATE_MINIMUM = 0.0f;
+    private static final float USER_VISIBLE_BRIGHTNESS_ANIMATION_THRESHOLD = 0.15f;
+    private static final float USER_VISIBLE_BRIGHTNESS_ANIMATION_TIME_SECS = 0.20f;
 
     private static final int COLOR_FADE_OFF_ANIMATION_DURATION_MILLIS = 400;
 
@@ -1838,7 +1840,7 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
                     && (animateValue != currentBrightness
                     || sdrAnimateValue != currentSdrBrightness)) {
                 boolean skipAnimation = initialRampSkip || hasBrightnessBuckets
-                        || !isDisplayContentVisible || brightnessIsTemporary;
+                        || !isDisplayContentVisible;
                 final boolean isHdrOnlyChange = BrightnessSynchronizer.floatEquals(
                         sdrAnimateValue, currentSdrBrightness);
                 if (mFlags.isFastHdrTransitionsEnabled() && !skipAnimation && isHdrOnlyChange) {
@@ -1871,6 +1873,8 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
                     } else {
                         rampSpeed = mBrightnessRampRateFastDecrease;
                     }
+                    rampSpeed = smoothBrightnessRampRate(currentBrightness, animateValue,
+                            rampSpeed, mBrightnessReasonTemp.getReason(), brightnessIsTemporary);
                     animateScreenBrightness(animateValue, sdrAnimateValue, rampSpeed);
                 }
             }
@@ -2432,6 +2436,37 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
 
     private void animateScreenBrightness(float target, float sdrTarget, float rate) {
         animateScreenBrightness(target, sdrTarget, rate, /* ignoreAnimationLimits = */false);
+    }
+
+    private float smoothBrightnessRampRate(float currentBrightness, float targetBrightness,
+            float rate, int brightnessReason, boolean brightnessIsTemporary) {
+        if (rate <= SCREEN_ANIMATION_RATE_MINIMUM
+                || !BrightnessUtils.isValidBrightnessValue(currentBrightness)
+                || !BrightnessUtils.isValidBrightnessValue(targetBrightness)
+                || Math.abs(targetBrightness - currentBrightness)
+                < USER_VISIBLE_BRIGHTNESS_ANIMATION_THRESHOLD) {
+            return rate;
+        }
+
+        final boolean shouldSmoothTransition = !brightnessIsTemporary
+                && (brightnessReason == BrightnessReason.REASON_MANUAL
+                        || brightnessReason == BrightnessReason.REASON_AUTOMATIC);
+        if (!shouldSmoothTransition) {
+            return rate;
+        }
+
+        final float currentGamma =
+                com.android.internal.display.BrightnessUtils.convertLinearToGamma(
+                        currentBrightness);
+        final float targetGamma =
+                com.android.internal.display.BrightnessUtils.convertLinearToGamma(
+                        targetBrightness);
+        final float maxRampRate =
+                Math.abs(targetGamma - currentGamma) / USER_VISIBLE_BRIGHTNESS_ANIMATION_TIME_SECS;
+        if (maxRampRate <= SCREEN_ANIMATION_RATE_MINIMUM) {
+            return rate;
+        }
+        return Math.min(rate, maxRampRate);
     }
 
     private void animateScreenBrightness(float target, float sdrTarget, float rate,
