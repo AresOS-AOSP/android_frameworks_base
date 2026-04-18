@@ -63,7 +63,7 @@ public class AnimationUtils {
     
     /** @hide **/
     public static final boolean sPerfAnimEnabled = SystemProperties.getBoolean(
-            "persist.sys.activity_anim_perf_override", false);
+            "persist.sys.activity_anim_perf_override", true);
 
     private static boolean sExpectedPresentationTimeFlagValue;
     static {
