@@ -1,4 +1,4 @@
-/*
+/*z
  * Copyright (C) 2006 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -7487,6 +7487,21 @@ public final class Settings {
          */
         @Readable
         public static final String BLOCK_WALLPAPER_DIMMING = "block_wallpaper_dimming";
+
+        /**
+         * @hide
+         */
+        public static final String QS_WIDGET_PANEL = "qs_widget_panel";
+
+        /**
+         * @hide
+         */
+        public static final String QS_WIDGET_IOS_MUSIC = "qs_widget_ios_music";
+
+        /**
+         * @hide
+         */
+        public static final String QS_WIDGET_SLIDER_CORNER = "qs_widget_slider_corner";
 
         /**
          * Keys we no longer back up under the current schema, but want to continue to
