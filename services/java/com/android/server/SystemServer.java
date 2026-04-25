@@ -2927,8 +2927,19 @@ public final class SystemServer implements Dumpable {
             mSystemServiceManager.startService(CustomDeviceConfigService.class);
             t.traceEnd();
 
-            // HideAppListService
-            mSystemServiceManager.startService(HideAppListService.class);
+            // HideAppsService
+            mSystemServiceManager.startService(HideAppsService.class);
+
+            // GameSpaceManagerService
+            t.traceBegin("GameSpaceManagerService");
+            mSystemServiceManager.startService(GameSpaceManagerService.class);
+            t.traceEnd();
+
+            // ImsConfigOverrideService
+            boolean imsOverrideEnabled = SystemProperties.getBoolean("persist.sys.target_enables_ims_override", false);
+            if (imsOverrideEnabled) {
+                mSystemServiceManager.startService(ImsConfigOverrideService.class);
+            }
         }
 
         t.traceBegin("StartMediaProjectionManager");

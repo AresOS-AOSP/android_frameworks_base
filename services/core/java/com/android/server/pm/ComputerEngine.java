@@ -167,6 +167,7 @@ import com.android.server.utils.WatchedSparseBooleanArray;
 import com.android.server.utils.WatchedSparseIntArray;
 import com.android.server.wm.ActivityTaskManagerInternal;
 import com.android.server.wm.AxSandboxService;
+import com.android.internal.util.crdroid.HideAppsUtils;
 
 import libcore.util.EmptyArray;
 
@@ -186,8 +187,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-
-import com.android.internal.util.crdroid.HideAppListUtils;
 
 /**
  * This class contains the implementation of the Computer functions.  It
@@ -1221,14 +1220,14 @@ public class ComputerEngine implements Computer {
 
     private boolean shouldHideAppListFromCaller(int callingUid, String packageName) {
         return canHideApp(callingUid, packageName)
-                && HideAppListUtils.shouldHideAppList(mContext, packageName);
+                && HideAppsUtils.shouldHideAppList(mContext, packageName);
     }
 
     private Set<String> getHiddenAppsForCaller(int callingUid, Context context) {
         if (context == null || !canHideApp(callingUid, null)) {
             return Collections.emptySet();
         }
-        return HideAppListUtils.getApps(context);
+        return HideAppsUtils.getApps(context, HideAppsUtils.Mode.APP_LIST);
     }
 
     public ParceledListSlice<PackageInfo> recreatePackageList(

@@ -217,6 +217,7 @@ import com.android.server.wm.ActivityTaskManagerInternal;
 import com.android.server.wm.AxSandboxService;
 import com.android.server.wm.WindowManagerInternal;
 import com.android.settingslib.RestrictedLockUtils;
+import com.android.internal.util.crdroid.HideAppsUtils;
 
 import org.xmlpull.v1.XmlPullParserException;
 
@@ -1575,6 +1576,10 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub
     @RequiresNoPermission
     public List<AccessibilityServiceInfo> getEnabledAccessibilityServiceList(int feedbackType,
             int userId) {
+        String[] pkgs = mContext.getPackageManager().getPackagesForUid(Binder.getCallingUid());
+        if (pkgs != null && pkgs.length > 0 && HideAppsUtils.shouldHideAppList(mContext, pkgs[0])) {
+            return Collections.emptyList();
+        }
         if (mTraceManager.isA11yTracingEnabledForTypes(FLAGS_ACCESSIBILITY_MANAGER)) {
             mTraceManager.logTrace(LOG_TAG + ".getEnabledAccessibilityServiceList",
                     FLAGS_ACCESSIBILITY_MANAGER,
