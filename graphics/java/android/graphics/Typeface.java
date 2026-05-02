@@ -1608,11 +1608,7 @@ public class Typeface {
 
         sFontName = fontFamily;
 
-        // Use FontController's fallback resolver to handle family-list
-        // entries (e.g. google-sans-flex) that may not register in
-        // sSystemFontMap by their list name, falling back through known
-        // aliases to Typeface.DEFAULT.
-        Typeface tf = FontController.resolveBaseTypeface();
+        Typeface tf = getOverrideTypeface(sFontName);
 
         Typeface tfBold = create(tf, BOLD);
         Typeface tfItalic = create(tf, ITALIC);
