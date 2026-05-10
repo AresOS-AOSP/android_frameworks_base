@@ -14974,11 +14974,6 @@ public final class Settings {
         /**
          * @hide
          */
-        public static final String SPOOF_PIF_PHOTOS = "spoof_pif_photos";
-
-        /**
-         * @hide
-         */
         public static final String SPOOF_GAMEPROPS_CONFIG = "spoof_gameprops_config";
 
         /**
