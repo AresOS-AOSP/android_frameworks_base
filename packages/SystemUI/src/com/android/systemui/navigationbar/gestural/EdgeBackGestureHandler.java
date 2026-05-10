@@ -1614,6 +1614,9 @@ public class EdgeBackGestureHandler implements TunerService.Tunable {
     public void setInsets(int leftInset, int rightInset) {
         mLeftInset = leftInset;
         mRightInset = rightInset;
+        if (mEdgeBackPlugin != null) {
+            mEdgeBackPlugin.setInsets(leftInset, rightInset);
+        }
     }
 
     private void disableNavBarVirtualKeyHapticFeedback() {

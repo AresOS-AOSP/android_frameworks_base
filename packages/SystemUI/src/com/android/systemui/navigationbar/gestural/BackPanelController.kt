@@ -20,6 +20,7 @@ import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Point
+import android.graphics.Rect
 import android.os.Handler
 import android.util.Log
 import android.util.MathUtils
@@ -27,6 +28,7 @@ import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.VelocityTracker
+import android.view.View
 import android.view.ViewConfiguration
 import android.view.WindowManager
 import androidx.annotation.VisibleForTesting
@@ -36,15 +38,19 @@ import androidx.dynamicanimation.animation.DynamicAnimation
 import com.android.internal.jank.Cuj
 import com.android.internal.jank.InteractionJankMonitor
 import com.android.internal.util.LatencyTracker
+import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.plugins.NavigationEdgeBackPlugin
+import com.android.systemui.res.R
 import com.android.systemui.statusbar.VibratorHelper
 import com.android.systemui.statusbar.policy.ConfigurationController
 import com.android.systemui.util.ViewController
 import com.android.systemui.util.time.SystemClock
+import com.android.wm.shell.shared.handles.RegionSamplingHelper
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import java.io.PrintWriter
+import java.util.concurrent.Executor
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -87,6 +93,7 @@ constructor(
     @Assisted private val windowManager: WindowManager,
     private val viewConfiguration: ViewConfiguration,
     @Assisted private val mainHandler: Handler,
+    @Background private val backgroundExecutor: Executor,
     private val systemClock: SystemClock,
     private val vibratorHelper: VibratorHelper,
     private val configurationController: ConfigurationController,
@@ -106,6 +113,12 @@ constructor(
     @VisibleForTesting internal var params: EdgePanelParams = EdgePanelParams(resources)
     @VisibleForTesting internal var currentState: GestureState = GestureState.GONE
     private var previousState: GestureState = GestureState.GONE
+
+    private var regionSamplingEnabled: Boolean = false
+    private var regionSamplingHelper: RegionSamplingHelper? = null
+    private val samplingRect = Rect()
+    private var leftInset = 0
+    private var rightInset = 0
 
     // Screen attributes
     private lateinit var layoutParams: WindowManager.LayoutParams
@@ -245,6 +258,31 @@ constructor(
         params.update(resources)
         mView.updateArrowPaint(params.arrowThickness)
         minFlingDistance = viewConfiguration.scaledTouchSlop * 3
+        updateRegionSampling()
+    }
+
+    private fun updateRegionSampling() {
+        val shouldEnable =
+            resources.getInteger(R.integer.config_backGestureArrowMode) !=
+                BackPanel.ARROW_MODE_STOCK
+        if (shouldEnable == regionSamplingEnabled) return
+        regionSamplingEnabled = shouldEnable
+        if (shouldEnable) {
+            regionSamplingHelper = RegionSamplingHelper(
+                mView,
+                object : RegionSamplingHelper.SamplingCallback {
+                    override fun onRegionDarknessChanged(isRegionDark: Boolean) {
+                        mView.setIsDark(!isRegionDark)
+                    }
+                    override fun getSampledRegion(sampledView: View): Rect = samplingRect
+                    override fun isSamplingEnabled(): Boolean = context.displayId == 0
+                },
+                backgroundExecutor,
+            ).also { it.setWindowVisible(true) }
+        } else {
+            regionSamplingHelper?.stopAndDestroy()
+            regionSamplingHelper = null
+        }
     }
 
     private val configurationListener =
@@ -290,6 +328,7 @@ constructor(
                 startIsLeft = mView.isLeftPanel
                 hasPassedDragSlop = false
                 mView.resetStretch()
+                regionSamplingHelper?.start(samplingRect)
                 mView.triggerLongSwipe = false
             }
             MotionEvent.ACTION_MOVE -> {
@@ -355,6 +394,7 @@ constructor(
                     }
                 }
                 velocityTracker = null
+                regionSamplingHelper?.stop()
             }
             MotionEvent.ACTION_CANCEL -> {
                 mView.triggerLongSwipe = triggerLongSwipe
@@ -364,8 +404,28 @@ constructor(
                 interactionJankMonitor.cancel(Cuj.CUJ_BACK_PANEL_ARROW)
                 updateArrowState(GestureState.GONE)
                 velocityTracker = null
+                regionSamplingHelper?.stop()
             }
         }
+    }
+
+    private fun updateSamplingRect() {
+        val helper = regionSamplingHelper ?: return
+        val left = if (mView.isLeftPanel) {
+            leftInset
+        } else {
+            displaySize.x - rightInset - layoutParams.width
+        }
+        val rect = Rect()
+        mView.getArrowBoundingBox().round(rect)
+        samplingRect.set(rect)
+        samplingRect.offset(left, layoutParams.y)
+        if (samplingRect.right > displaySize.x) {
+            samplingRect.offset(displaySize.x - samplingRect.right, 0)
+        } else if (samplingRect.left < 0) {
+            samplingRect.offset(-samplingRect.left, 0)
+        }
+        helper.updateSamplingRect()
     }
 
     private fun cancelAllPendingAnimations() {
@@ -507,6 +567,7 @@ constructor(
 
         setArrowStrokeAlpha(gestureProgress)
         setVerticalTranslation(yOffset)
+        updateSamplingRect()
     }
 
     private fun setArrowStrokeAlpha(gestureProgress: Float?) {
@@ -639,6 +700,13 @@ constructor(
     override fun onDestroy() {
         cancelFailsafe()
         windowManager.removeView(mView)
+        regionSamplingHelper?.stopAndDestroy()
+        regionSamplingHelper = null
+    }
+
+    override fun setInsets(insetLeft: Int, insetRight: Int) {
+        leftInset = insetLeft
+        rightInset = insetRight
     }
 
     override fun setIsLeftPanel(isLeftPanel: Boolean) {
@@ -746,6 +814,7 @@ constructor(
         yPosition = max(yPosition, params.minArrowYPosition.toFloat())
         yPosition -= layoutParams.height / 2.0f
         layoutParams.y = MathUtils.constrain(yPosition.toInt(), 0, displaySize.y)
+        updateSamplingRect()
     }
 
     override fun setDisplaySize(displaySize: Point) {
