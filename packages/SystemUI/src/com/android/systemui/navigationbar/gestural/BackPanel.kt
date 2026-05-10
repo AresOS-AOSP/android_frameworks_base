@@ -9,11 +9,13 @@ import android.graphics.Path
 import android.util.PathParser
 import android.graphics.RectF
 import android.util.MathUtils.min
+import android.view.ContextThemeWrapper
 import android.view.View
 import androidx.dynamicanimation.animation.FloatPropertyCompat
 import androidx.dynamicanimation.animation.SpringAnimation
 import androidx.dynamicanimation.animation.SpringForce
 import com.android.internal.util.LatencyTracker
+import com.android.settingslib.Utils
 import com.android.systemui.navigationbar.gestural.BackPanelController.DelayedOnAnimationEndListener
 import com.android.systemui.res.R
 
@@ -43,6 +45,9 @@ class BackPanel(context: Context, private val latencyTracker: LatencyTracker) : 
     // Arrow background color and shape
     private var arrowBackgroundRect = RectF()
     private var arrowBackgroundPaint = Paint()
+
+    private val arrowColorLight: Int
+    private val arrowColorDark: Int
 
     // True if the panel is currently on the left of the screen
     var isLeftPanel = false
@@ -165,14 +170,17 @@ class BackPanel(context: Context, private val latencyTracker: LatencyTracker) : 
             resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
                 Configuration.UI_MODE_NIGHT_YES
 
-        arrowPaint.color =
-            context.getColor(
-                if (isDeviceInNightTheme) {
-                    com.android.internal.R.color.materialColorOnSecondaryContainer
-                } else {
-                    com.android.internal.R.color.materialColorOnSecondaryFixed
-                }
-            )
+        val arrowMode = resources.getInteger(R.integer.config_backGestureArrowMode)
+        if (arrowMode == ARROW_MODE_STOCK) {
+            arrowPaint.color =
+                context.getColor(
+                    if (isDeviceInNightTheme) {
+                        com.android.internal.R.color.materialColorOnSecondaryContainer
+                    } else {
+                        com.android.internal.R.color.materialColorOnSecondaryFixed
+                    }
+                )
+        }
 
         arrowBackgroundPaint.color =
             context.getColor(
@@ -288,6 +296,14 @@ class BackPanel(context: Context, private val latencyTracker: LatencyTracker) : 
     }
 
     init {
+        val lightThemeWrapper =
+            ContextThemeWrapper(context, Utils.getThemeAttr(context, R.attr.lightIconTheme))
+        arrowColorLight =
+            Utils.getColorAttrDefaultColor(lightThemeWrapper, R.attr.singleToneColor)
+        val darkThemeWrapper =
+            ContextThemeWrapper(context, Utils.getThemeAttr(context, R.attr.darkIconTheme))
+        arrowColorDark =
+            Utils.getColorAttrDefaultColor(darkThemeWrapper, R.attr.singleToneColor)
         visibility = GONE
         arrowPaint.apply {
             style = Paint.Style.STROKE
@@ -297,6 +313,13 @@ class BackPanel(context: Context, private val latencyTracker: LatencyTracker) : 
             style = Paint.Style.FILL
             strokeJoin = Paint.Join.ROUND
             strokeCap = Paint.Cap.ROUND
+        }
+    }
+
+    fun setIsDark(isDark: Boolean) {
+        post {
+            arrowPaint.color = if (isDark) arrowColorDark else arrowColorLight
+            invalidate()
         }
     }
 
@@ -496,9 +519,12 @@ class BackPanel(context: Context, private val latencyTracker: LatencyTracker) : 
                     topRight = farCorner,
                     bottomRight = farCorner,
                 )
+        val arrowMode = resources.getInteger(R.integer.config_backGestureArrowMode)
+        val backgroundAlphaValue =
+            if (arrowMode == ARROW_MODE_STOCK) (255 * backgroundAlpha.pos).toInt() else 0
         canvas.drawPath(
             arrowBackground,
-            arrowBackgroundPaint.apply { alpha = (255 * backgroundAlpha.pos).toInt() },
+            arrowBackgroundPaint.apply { alpha = backgroundAlphaValue },
         )
 
         val dx = arrowLength.pos
@@ -520,7 +546,6 @@ class BackPanel(context: Context, private val latencyTracker: LatencyTracker) : 
             }
         }
 
-        val arrowMode = resources.getInteger(R.integer.config_backGestureArrowMode)
         val arrowPaint =
             arrowPaint.apply {
                 alpha = (255 * min(arrowAlpha.pos, backgroundAlpha.pos)).toInt()
