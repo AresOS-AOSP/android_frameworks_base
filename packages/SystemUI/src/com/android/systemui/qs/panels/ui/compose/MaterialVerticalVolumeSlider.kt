@@ -32,9 +32,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -222,55 +219,67 @@ fun MaterialVerticalVolumeSlider(
             .clip(shape)
             .background(trackBg)
             .pointerInput(Unit) {
-                awaitEachGesture {
-                    awaitFirstDown(requireUnconsumed = false)
-                    view.parent?.requestDisallowInterceptTouchEvent(true)
-                    waitForUpOrCancellation()
-                    view.parent?.requestDisallowInterceptTouchEvent(false)
+                val deadZonePx = 30.dp.toPx()
+
+                fun writeVolume(fraction: Float) {
+                    val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                    val target = (fraction * maxVol).toInt().coerceIn(0, maxVol)
+                    scope.launch(Dispatchers.IO) {
+                        try { audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0) }
+                        catch (_: Exception) {}
+                    }
                 }
-            }
-            .pointerInput(Unit) {
-                detectVerticalDragGestures(
-                    onDragStart = {
-                        isDragging = true
-                        lastHapticStep = -1
-                    },
-                    onDragEnd = { isDragging = false },
-                    onDragCancel = { isDragging = false },
-                    onVerticalDrag = { change, _ ->
-                        change.consume()
-                        val fraction = 1f - (change.position.y / size.height).coerceIn(0f, 1f)
-                        volumeFraction = fraction
-                        if (hapticEnabled) {
-                            val step = (fraction * 20).toInt()
-                            if (step != lastHapticStep) {
-                                lastHapticStep = step
-                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    view.parent?.requestDisallowInterceptTouchEvent(true)
+
+                    val downInDeadZone = down.position.y >= size.height - deadZonePx
+                    val downFraction = 1f - (down.position.y / size.height).coerceIn(0f, 1f)
+
+                    var dragging = false
+                    var inDeadZone = downInDeadZone
+                    try {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val ptr = event.changes.firstOrNull { it.id == down.id } ?: break
+                            if (!ptr.pressed) {
+                                if (inDeadZone && !dragging) {
+                                    cycleRingerMode()
+                                    ptr.consume()
+                                } else if (!dragging) {
+                                    volumeFraction = downFraction
+                                    writeVolume(downFraction)
+                                }
+                                break
+                            }
+
+                            val dragAmt = ptr.position.y - down.position.y
+                            if (!dragging && kotlin.math.abs(dragAmt) > viewConfiguration.touchSlop) {
+                                dragging = true
+                                inDeadZone = false
+                                isDragging = true
+                                lastHapticStep = -1
+                            }
+                            if (dragging) {
+                                ptr.consume()
+                                val fraction = 1f - (ptr.position.y / size.height).coerceIn(0f, 1f)
+                                volumeFraction = fraction
+                                if (hapticEnabled) {
+                                    val step = (fraction * 20).toInt()
+                                    if (step != lastHapticStep) {
+                                        lastHapticStep = step
+                                        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                    }
+                                }
+                                writeVolume(fraction)
                             }
                         }
-                        val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-                        val target = (fraction * maxVol).toInt().coerceIn(0, maxVol)
-                        scope.launch(Dispatchers.IO) {
-                            try { audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0) }
-                            catch (_: Exception) {}
-                        }
-                    },
-                )
-            }
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onTap = { offset ->
-                        val fraction = 1f - (offset.y / size.height).coerceIn(0f, 1f)
-                        volumeFraction = fraction
-                        val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-                        val target = (fraction * maxVol).toInt().coerceIn(0, maxVol)
-                        scope.launch(Dispatchers.IO) {
-                            try { audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0) }
-                            catch (_: Exception) {}
-                        }
-                    },
-                    onLongPress = { cycleRingerMode() },
-                )
+                    } finally {
+                        isDragging = false
+                        view.parent?.requestDisallowInterceptTouchEvent(false)
+                    }
+                }
             },
     ) {
         Box(

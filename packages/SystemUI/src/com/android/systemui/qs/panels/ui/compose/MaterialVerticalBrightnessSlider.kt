@@ -67,8 +67,6 @@ import com.android.settingslib.display.BrightnessUtils.convertGammaToLinearFloat
 import com.android.settingslib.display.BrightnessUtils.convertLinearToGammaFloat
 import com.android.systemui.res.R
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -231,54 +229,55 @@ fun MaterialVerticalBrightnessSlider(
             .clip(shape)
             .background(trackBg)
             .pointerInput(Unit) {
-                var longPressJob: Job? = null
+                val deadZonePx = 30.dp.toPx()
+
+                fun toggleAutoMode() {
+                    val newAuto = !autoMode
+                    autoMode = newAuto
+                    val mode = if (newAuto)
+                        Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC
+                    else
+                        Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL
+                    scope.launch(Dispatchers.IO) {
+                        try {
+                            Settings.System.putIntForUser(
+                                cr, Settings.System.SCREEN_BRIGHTNESS_MODE,
+                                mode, UserHandle.USER_CURRENT,
+                            )
+                        } catch (_: Exception) {}
+                    }
+                    view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                }
 
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     view.parent?.requestDisallowInterceptTouchEvent(true)
 
+                    val downInDeadZone = down.position.y >= size.height - deadZonePx
                     val downLinear = yToLinear(down.position.y, size.height)
-                    val downTime = System.currentTimeMillis()
+
                     var dragging = false
-
-                    longPressJob = scope.launch {
-                        delay(500)
-                        val newAuto = !autoMode
-                        autoMode = newAuto
-                        val mode = if (newAuto)
-                            Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC
-                        else
-                            Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL
-                        launch(Dispatchers.IO) {
-                            try {
-                                Settings.System.putIntForUser(
-                                    cr, Settings.System.SCREEN_BRIGHTNESS_MODE,
-                                    mode, UserHandle.USER_CURRENT,
-                                )
-                            } catch (_: Exception) {}
-                        }
-                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                    }
-
+                    var inDeadZone = downInDeadZone
                     try {
                         while (true) {
                             val event = awaitPointerEvent(PointerEventPass.Main)
                             val ptr = event.changes.firstOrNull { it.id == down.id } ?: break
                             if (!ptr.pressed) {
-                                val heldMs = System.currentTimeMillis() - downTime
-                                if (!dragging && heldMs < 500) {
+                                if (inDeadZone && !dragging) {
+                                    toggleAutoMode()
+                                    ptr.consume()
+                                } else if (!dragging) {
                                     linearBrightness = downLinear
                                     writeLinearBrightness(downLinear)
                                 }
-                                longPressJob?.cancel()
                                 break
                             }
 
                             val dragAmt = ptr.position.y - down.position.y
                             if (!dragging && abs(dragAmt) > viewConfiguration.touchSlop) {
                                 dragging = true
+                                inDeadZone = false
                                 isDragging = true
-                                longPressJob?.cancel()
                                 lastHapticStep = -1
                             }
                             if (dragging) {
@@ -286,18 +285,17 @@ fun MaterialVerticalBrightnessSlider(
                                 val v = yToLinear(ptr.position.y, size.height)
                                 linearBrightness = v
                                 if (hapticEnabled) {
-                                val frac = linearToFraction(v)
-                                val step = (frac * 20).toInt()
-                                if (step != lastHapticStep) {
-                                    lastHapticStep = step
-                                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                    val frac = linearToFraction(v)
+                                    val step = (frac * 20).toInt()
+                                    if (step != lastHapticStep) {
+                                        lastHapticStep = step
+                                        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                    }
                                 }
-                            }
                                 writeLinearBrightness(v)
                             }
                         }
                     } finally {
-                        longPressJob?.cancel()
                         isDragging = false
                         view.parent?.requestDisallowInterceptTouchEvent(false)
                     }
