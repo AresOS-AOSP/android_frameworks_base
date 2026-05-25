@@ -696,7 +696,7 @@ private fun rememberShowRingerMode(): Boolean {
 private data class BrightnessGradient(val brush: Brush)
 
 @Composable
-private fun rememberSliderGradient(): Boolean {
+fun rememberBrightnessSliderGradientEnabled(): Boolean {
     val context = LocalContext.current
     val contentResolver = context.contentResolver
 
@@ -798,7 +798,7 @@ private fun rememberGradientCustomColors(): Pair<Color, Color> {
 
 @Composable
 private fun brightnessSliderGradient(): BrightnessGradient? {
-    if (!rememberSliderGradient()) return null
+    if (!rememberBrightnessSliderGradientEnabled()) return null
 
     val mode = rememberGradientColorMode()
     val colors = if (mode == 1) {
@@ -1226,7 +1226,7 @@ private fun VolumeSlider(
     val activeIconColor = colors.activeTickColor
     val inactiveIconColor = colors.inactiveTickColor
     val thumbColorOverride: Color? =
-        if (!rememberSliderGradient()) {
+        if (!rememberBrightnessSliderGradientEnabled()) {
             null
         } else if (rememberGradientColorMode() == 1) {
             val (customStart, _) = rememberGradientCustomColors()
