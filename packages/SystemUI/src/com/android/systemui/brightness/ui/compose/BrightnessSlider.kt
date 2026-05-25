@@ -601,7 +601,7 @@ fun rememberSliderShapeMode(): Int {
 private data class BrightnessGradient(val brush: Brush)
 
 @Composable
-private fun rememberSliderGradient(): Boolean {
+fun rememberBrightnessSliderGradientEnabled(): Boolean {
     val context = LocalContext.current
     val contentResolver = context.contentResolver
 
@@ -703,7 +703,7 @@ private fun rememberGradientCustomColors(): Pair<Color, Color> {
 
 @Composable
 private fun brightnessSliderGradient(): BrightnessGradient? {
-    if (!rememberSliderGradient()) return null
+    if (!rememberBrightnessSliderGradientEnabled()) return null
 
     val mode = rememberGradientColorMode()
     val colors = if (mode == 1) {

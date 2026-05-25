@@ -73,11 +73,11 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+import com.android.systemui.brightness.ui.compose.rememberBrightnessSliderGradientEnabled
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.CustomColorScheme
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.rememberTileHaptic
 import com.android.systemui.volume.dialog.sliders.ui.compose.rememberGradientColorMode
 import com.android.systemui.volume.dialog.sliders.ui.compose.rememberGradientCustomColors
-import com.android.systemui.volume.dialog.sliders.ui.compose.rememberVolumeGradientEnabled
 
 private val CORNER_DEFAULT = 26.dp
 private val CORNER_ROUNDED = 50.dp
@@ -180,7 +180,7 @@ fun MaterialVerticalBrightnessSlider(
         animationSpec = tween(300),
         label = "BrightnessIconTint",
     )
-    val gradientEnabled = rememberVolumeGradientEnabled()
+    val gradientEnabled = rememberBrightnessSliderGradientEnabled()
     val gradientColors = if (rememberGradientColorMode() == 1) {
         val g = rememberGradientCustomColors()
         listOf(g.startColor, g.endColor)
