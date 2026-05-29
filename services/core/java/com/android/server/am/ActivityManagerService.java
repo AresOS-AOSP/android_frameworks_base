@@ -20069,7 +20069,8 @@ public class ActivityManagerService extends IActivityManager.Stub
 
     @Override
     public void releaseMemory(int minAdj, int maxKillCount,
-                              boolean includeUIProcesses, boolean skipCamera) {
+                              boolean includeUIProcesses, boolean skipCamera,
+                              List<String> protectedPackages) {
         if (minAdj <= 0) return;
 
         final int currentUser = mUserController.getCurrentUserId();
@@ -20090,6 +20091,8 @@ public class ActivityManagerService extends IActivityManager.Stub
                     if (state <= ActivityManager.PROCESS_STATE_IMPORTANT_FOREGROUND) return;
                     if (state == ActivityManager.PROCESS_STATE_HOME) return;
                     if (!includeUIProcesses && proc.hasActivities()) return;
+                    if (protectedPackages != null
+                            && protectedPackages.contains(proc.info.packageName)) return;
 
                     if (setAdj >= minAdj) victims.add(proc);
                 });
