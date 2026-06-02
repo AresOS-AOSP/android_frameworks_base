@@ -21,7 +21,6 @@ package com.android.compose
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -48,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Brush
@@ -285,49 +285,62 @@ private fun TrackBackground(
         )
     val indicatorBrush = colors.getIndicatorBrush(enabled)
     Box(modifier = modifier) {
-        Canvas(Modifier.fillMaxSize()) {
-            val trackCornerRadius = CornerRadius(size.height / 2, size.height / 2)
-            val trackPath = Path()
-            trackPath.addRoundRect(
-                RoundRect(
-                    left = 0f,
-                    top = 0f,
-                    right = drawingState.totalWidth,
-                    bottom = drawingState.totalHeight,
-                    cornerRadius = trackCornerRadius,
-                )
-            )
-            if (trackBrush != null) {
-                drawPath(path = trackPath, brush = trackBrush)
-            } else {
-                drawPath(path = trackPath, color = trackColor)
-            }
-
-            if (indicatorBackground == null) {
-                val indicatorCornerRadius =
-                    CornerRadius(indicatorRadiusDp.toPx(), indicatorRadiusDp.toPx())
-                clipPath(trackPath) {
-                    val indicatorPath = Path()
-                    indicatorPath.addRoundRect(
-                        RoundRect(
-                            left = drawingState.indicatorLeft,
-                            top = drawingState.indicatorTop,
-                            right = drawingState.indicatorRight,
-                            bottom = drawingState.indicatorBottom,
-                            topLeftCornerRadius = trackCornerRadius,
-                            topRightCornerRadius = indicatorCornerRadius,
-                            bottomRightCornerRadius = indicatorCornerRadius,
-                            bottomLeftCornerRadius = trackCornerRadius,
-                        )
-                    )
-                    if (indicatorBrush != null) {
-                        drawPath(path = indicatorPath, brush = indicatorBrush)
-                    } else {
-                        drawPath(path = indicatorPath, color = indicatorColor)
+        Spacer(
+            Modifier
+                .fillMaxSize()
+                .drawWithCache {
+                    val trackCornerRadius = CornerRadius(size.height / 2, size.height / 2)
+                    val trackPath =
+                        Path().apply {
+                            addRoundRect(
+                                RoundRect(
+                                    left = 0f,
+                                    top = 0f,
+                                    right = drawingState.totalWidth,
+                                    bottom = drawingState.totalHeight,
+                                    cornerRadius = trackCornerRadius,
+                                )
+                            )
+                        }
+                    val indicatorPath =
+                        if (indicatorBackground == null) {
+                            val indicatorCornerRadius =
+                                CornerRadius(indicatorRadiusDp.toPx(), indicatorRadiusDp.toPx())
+                            Path().apply {
+                                addRoundRect(
+                                    RoundRect(
+                                        left = drawingState.indicatorLeft,
+                                        top = drawingState.indicatorTop,
+                                        right = drawingState.indicatorRight,
+                                        bottom = drawingState.indicatorBottom,
+                                        topLeftCornerRadius = trackCornerRadius,
+                                        topRightCornerRadius = indicatorCornerRadius,
+                                        bottomRightCornerRadius = indicatorCornerRadius,
+                                        bottomLeftCornerRadius = trackCornerRadius,
+                                    )
+                                )
+                            }
+                        } else {
+                            null
+                        }
+                    onDrawBehind {
+                        if (trackBrush != null) {
+                            drawPath(path = trackPath, brush = trackBrush)
+                        } else {
+                            drawPath(path = trackPath, color = trackColor)
+                        }
+                        if (indicatorPath != null) {
+                            clipPath(trackPath) {
+                                if (indicatorBrush != null) {
+                                    drawPath(path = indicatorPath, brush = indicatorBrush)
+                                } else {
+                                    drawPath(path = indicatorPath, color = indicatorColor)
+                                }
+                            }
+                        }
                     }
                 }
-            }
-        }
+        )
 
         if (
             indicatorBackground != null &&
