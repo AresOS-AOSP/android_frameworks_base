@@ -79,6 +79,9 @@ import com.android.systemui.haptics.slider.compose.ui.SliderHapticsViewModel
 import com.android.systemui.lifecycle.rememberViewModel
 import com.android.systemui.res.R
 import com.android.systemui.volume.dialog.sliders.ui.compose.SliderTrack
+import com.android.systemui.volume.dialog.sliders.ui.compose.rememberGradientColorMode
+import com.android.systemui.volume.dialog.sliders.ui.compose.rememberGradientCustomColors
+import com.android.systemui.volume.dialog.sliders.ui.compose.rememberVolumeGradientEnabled
 import com.android.systemui.volume.haptics.ui.VolumeHapticsConfigsProvider
 import com.android.systemui.volume.panel.component.volume.slider.ui.viewmodel.SliderState
 import com.android.systemui.volume.ui.compose.slider.AccessibilityParams
@@ -147,6 +150,14 @@ fun VolumeSlider(
                     .weight(1f)
                     .height(dimensions.thumbHeight))
             } else {
+                val thumbColorOverride: Color? =
+                    if (!rememberVolumeGradientEnabled()) {
+                        null
+                    } else if (rememberGradientColorMode() == 1) {
+                        rememberGradientCustomColors().startColor
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    }
                 Slider(
                     value = state.value,
                     valueRange = state.valueRange,
@@ -206,6 +217,7 @@ fun VolumeSlider(
                                         )
                                     }
                                 },
+                            ignoreGradient = false,
                         )
                     },
                     thumb = { sliderState, interactionSource ->
@@ -213,7 +225,10 @@ fun VolumeSlider(
                             sliderState = sliderState,
                             interactionSource = interactionSource,
                             enabled = state.isEnabled,
-                            colors = materialSliderColors,
+                            colors =
+                                thumbColorOverride?.let {
+                                    materialSliderColors.copy(thumbColor = it)
+                                } ?: materialSliderColors,
                             thumbSize = DpSize(dimensions.thumbWidth, dimensions.thumbHeight),
                         )
                     },
