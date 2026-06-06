@@ -3373,6 +3373,12 @@ public class ExpandableNotificationRow extends ActivatableNotificationView
         }
     }
 
+    @Override
+    public void setIsLockscreenBlurSupported(boolean isBlurSupported) {
+        super.setIsLockscreenBlurSupported(isBlurSupported);
+        updateBundleHeaderBlurEnabled();
+    }
+
     private void updateChildrenAxBlurEnabled() {
         if (mIsSummaryWithChildren && mChildrenContainer != null) {
             List<ExpandableNotificationRow> children = mChildrenContainer.getAttachedChildren();
@@ -3395,7 +3401,8 @@ public class ExpandableNotificationRow extends ActivatableNotificationView
     }
 
     public boolean shouldUseBundleHeaderBlurBackground() {
-        return mOnKeyguard && !mIsDozing && !isColorizedNotification();
+        return mOnKeyguard && mIsLockscreenBlurSupported && !mIsDozing
+                && !isColorizedNotification();
     }
 
     @Override

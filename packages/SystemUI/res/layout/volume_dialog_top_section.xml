@@ -24,7 +24,7 @@
     android:gravity="center"
     app:layoutDescription="@xml/volume_dialog_ringer_drawer_motion_scene">
 
-    <View
+    <com.android.systemui.volume.dialog.ui.VolumeDialogBlurBackgroundView
         android:id="@+id/ringer_buttons_background"
         android:layout_width="@dimen/volume_dialog_width"
         android:layout_height="0dp"

@@ -55,6 +55,9 @@ constructor(
 
     val isBlurSupported: Flow<Boolean> = windowRootViewBlurInteractor.isTranslucentSupported
 
+    val isLockscreenTranslucentSupported: Flow<Boolean> =
+        windowRootViewBlurInteractor.isLockscreenTranslucentSupported
+
     /** Notifies that the user has clicked the shelf. */
     fun onShelfClicked() {
         interactor.goToLockedShadeFromShelf()
