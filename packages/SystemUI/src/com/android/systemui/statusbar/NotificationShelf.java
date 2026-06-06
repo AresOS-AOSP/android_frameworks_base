@@ -1151,8 +1151,10 @@ public class NotificationShelf extends ActivatableNotificationView {
 
     @Override
     protected boolean usesTransparentBackground() {
+        if (mAmbientState != null && mAmbientState.isOnKeyguard()) {
+            return mIsLockscreenBlurSupported;
+        }
         return super.usesTransparentBackground()
-                && mAmbientState != null
-                && !mAmbientState.isOnKeyguard();
+                && mAmbientState != null;
     }
 }
