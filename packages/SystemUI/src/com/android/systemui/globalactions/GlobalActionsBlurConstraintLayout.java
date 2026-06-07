@@ -16,6 +16,7 @@
 package com.android.systemui.globalactions;
 
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
@@ -26,6 +27,7 @@ import com.android.systemui.common.ui.view.LaunchableConstraintLayout;
 
 public class GlobalActionsBlurConstraintLayout extends LaunchableConstraintLayout {
     private final AxBlurBackgroundRenderer mBackdropBlur;
+    private Boolean mBlurTintApplied;
 
     public GlobalActionsBlurConstraintLayout(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -36,6 +38,7 @@ public class GlobalActionsBlurConstraintLayout extends LaunchableConstraintLayou
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
         mBackdropBlur.onAttachedToWindow();
+        updateBackgroundTint();
     }
 
     @Override
@@ -57,10 +60,28 @@ public class GlobalActionsBlurConstraintLayout extends LaunchableConstraintLayou
 
     @Override
     public void draw(Canvas canvas) {
+        // Translucent tint over the blur when active; opaque surface otherwise so the
+        // dialog doesn't look washed out without blur behind it.
+        updateBackgroundTint();
         mBackdropBlur.drawBackground(
                 canvas,
                 getBackground(),
                 AxBlurColors.surfaceContainerTint(getContext()));
         super.draw(canvas);
+    }
+
+    private void updateBackgroundTint() {
+        updateBackgroundTint(mBackdropBlur.isCrossWindowBlurActive());
+    }
+
+    private void updateBackgroundTint(boolean blurActive) {
+        if (mBlurTintApplied != null && mBlurTintApplied == blurActive) {
+            return;
+        }
+        mBlurTintApplied = blurActive;
+        ColorStateList tint = blurActive
+                ? AxBlurColors.surfaceContainerTintList(getContext())
+                : null;
+        setBackgroundTintList(tint);
     }
 }

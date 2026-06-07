@@ -117,7 +117,6 @@ import androidx.lifecycle.Lifecycle;
 import androidx.lifecycle.LifecycleOwner;
 import androidx.lifecycle.LifecycleRegistry;
 
-import com.android.axion.blur.AxBlurColors;
 import com.android.axion.blur.AxWindowBlurController;
 import com.android.app.animation.Interpolators;
 import com.android.internal.R;
@@ -3288,6 +3287,13 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
             mContainer = findViewById(com.android.systemui.res.R.id.global_actions_container);
             mScrimView = findViewById(
                     com.android.systemui.res.R.id.global_actions_background_scrim);
+            if (!AxWindowBlurController.supportsBlur()) {
+                // No blur available: drop the translucent scrim view and just dim the
+                // background like the dialog did before blur.
+                mScrimView.setVisibility(View.GONE);
+                getWindow().addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+                getWindow().setDimAmount(0.88f);
+            }
             mContainer.setOnTouchListener((v, event) -> {
                 mGestureDetector.onTouchEvent(event);
                 return v.onTouchEvent(event);
@@ -3315,10 +3321,6 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
             if (mBackgroundDrawable == null) {
                 mBackgroundDrawable = new ScrimDrawable();
                 mScrimAlpha = 1.0f;
-            }
-            if (QsInCompose.isEnabled()) {
-                View v = findViewById(R.id.list);
-                v.setBackgroundTintList(AxBlurColors.surfaceContainerTintList(getContext()));
             }
 
             // If user entered from the lock screen and smart lock was enabled, disable it
