@@ -367,7 +367,7 @@ public abstract class ActivatableNotificationView extends ExpandableOutlineView 
     }
 
     protected boolean isAxBlurKeyguardVisible() {
-        return mBackgroundNormal != null && mOnKeyguard;
+        return mBackgroundNormal != null && mOnKeyguard && mIsLockscreenBlurSupported;
     }
 
     protected boolean hasAxBlurBlockingTint() {
@@ -398,6 +398,7 @@ public abstract class ActivatableNotificationView extends ExpandableOutlineView 
     public void setIsLockscreenBlurSupported(boolean isBlurSupported) {
         mIsLockscreenBlurSupported = isBlurSupported;
         updateIfNeeded();
+        updateAxBlurEnabled();
     }
 
     /** Updates background blur/transparency when transparent state changes. */
