@@ -946,12 +946,14 @@ private fun nextRingerMode(current: Int, hasVibrator: Boolean): Int =
         }
     }
 
+/**
+ * Tracks the current internal ringer mode and returns it together with a callback that cycles to the
+ * next mode (ring / vibrate / silent). Shared by [VolumeRingerButton] and the ax-style volume
+ * slider so both stay in sync with system ringer changes.
+ */
 @Composable
-private fun VolumeRingerButton(
-    hapticsEnabled: Boolean,
-) {
+private fun rememberRingerMode(): Pair<Int, () -> Unit> {
     val context = LocalContext.current
-    val view = LocalView.current
     val audioManager = remember { context.getSystemService(AudioManager::class.java) }
     val hasVibrator =
         remember { context.getSystemService(Vibrator::class.java)?.hasVibrator() == true }
@@ -979,6 +981,23 @@ private fun VolumeRingerButton(
         context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
         onDispose { runCatching { context.unregisterReceiver(receiver) } }
     }
+
+    val toggle = {
+        val next = nextRingerMode(ringerMode, hasVibrator)
+        ringerMode = next
+        runCatching { audioManager?.ringerModeInternal = next }
+        Unit
+    }
+
+    return ringerMode to toggle
+}
+
+@Composable
+private fun VolumeRingerButton(
+    hapticsEnabled: Boolean,
+) {
+    val view = LocalView.current
+    val (ringerMode, toggleRinger) = rememberRingerMode()
 
     val isOn = ringerMode != AudioManager.RINGER_MODE_SILENT
 
@@ -1041,9 +1060,7 @@ private fun VolumeRingerButton(
                         if (hapticsEnabled) {
                             view.performHapticFeedback(hapticConstant)
                         }
-                        val next = nextRingerMode(ringerMode, hasVibrator)
-                        ringerMode = next
-                        runCatching { audioManager?.ringerModeInternal = next }
+                        toggleRinger()
                     }
                 ),
         contentAlignment = Alignment.Center,
@@ -1211,6 +1228,7 @@ private fun VolumeSlider(
     val floatValueRange = minVolume.toFloat()..maxVolume.toFloat()
 
     var hapticsEnabled by remember { mutableStateOf(readEnableHaptics(cr)) }
+    var useAxStyle by remember { mutableStateOf(readUseAxStyle(cr)) }
 
     val shapeMode = rememberSliderShapeMode()
     val trackCornerDp: Dp =
@@ -1266,22 +1284,31 @@ private fun VolumeSlider(
             Context.RECEIVER_NOT_EXPORTED,
         )
 
-        val hapticsObserver =
+        val settingsObserver =
             object : ContentObserver(null) {
                 override fun onChange(selfChange: Boolean) {
-                    context.mainExecutor.execute { hapticsEnabled = readEnableHaptics(cr) }
+                    context.mainExecutor.execute {
+                        hapticsEnabled = readEnableHaptics(cr)
+                        useAxStyle = readUseAxStyle(cr)
+                    }
                 }
             }
         cr.registerContentObserver(
             Settings.System.getUriFor(Settings.System.QS_BRIGHTNESS_SLIDER_HAPTIC),
             false,
-            hapticsObserver,
+            settingsObserver,
+            UserHandle.USER_ALL,
+        )
+        cr.registerContentObserver(
+            Settings.System.getUriFor(Settings.System.QS_BRIGHTNESS_SLIDER_STYLE),
+            false,
+            settingsObserver,
             UserHandle.USER_ALL,
         )
 
         onDispose {
             runCatching { context.unregisterReceiver(receiver) }
-            cr.unregisterContentObserver(hapticsObserver)
+            cr.unregisterContentObserver(settingsObserver)
         }
     }
 
@@ -1302,6 +1329,90 @@ private fun VolumeSlider(
         } else {
             null
         }
+
+    if (useAxStyle) {
+        val view = LocalView.current
+        val (ringerMode, toggleRinger) = rememberRingerMode()
+        val ringerIconRes =
+            when (ringerMode) {
+                AudioManager.RINGER_MODE_VIBRATE -> R.drawable.ic_volume_ringer_vibrate
+                AudioManager.RINGER_MODE_SILENT -> R.drawable.ic_speaker_mute
+                else -> R.drawable.ic_speaker_on
+            }
+        val ringerContentDescription =
+            when (ringerMode) {
+                AudioManager.RINGER_MODE_VIBRATE -> stringResource(R.string.accessibility_ringer_vibrate)
+                AudioManager.RINGER_MODE_SILENT -> stringResource(R.string.accessibility_ringer_silent)
+                else -> stringResource(R.string.stream_ring)
+            }
+        val volumeContentDescription = stringResource(R.string.stream_music)
+        val axIconSize = 56.dp
+        val sliderColors = PlatformSliderDefaults.defaultPlatformSliderColors().copy(
+            trackColor = CustomColorScheme.current.qsTileColor,
+            indicatorBrush = gradient?.brush,
+        )
+
+        Box(modifier = modifier.fillMaxWidth()) {
+            PlatformSlider(
+                value = animatedValue,
+                onValueChange = {
+                    dragging = true
+                    hapticsViewModel?.onValueChange(it)
+                    val newValue = it.roundToInt().coerceIn(minVolume, maxVolume)
+                    if (newValue != value) {
+                        value = newValue
+                        audioManager?.setStreamVolume(streamType, newValue, 0)
+                    }
+                },
+                onValueChangeFinished = {
+                    hapticsViewModel?.onValueChangeEnded()
+                    audioManager?.setStreamVolume(streamType, value, 0)
+                    dragging = false
+                },
+                valueRange = floatValueRange,
+                enabled = true,
+                interactionSource = interactionSource,
+                colors = sliderColors,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(axIconSize)
+                    .sysuiResTag("volume_slider")
+                    .semantics(mergeDescendants = true) {
+                        this.text = AnnotatedString(volumeContentDescription)
+                    }
+                    .sliderPercentage {
+                        (value - minVolume).toFloat() / (maxVolume - minVolume).coerceAtLeast(1)
+                    },
+                icon = { _ ->
+                    Icon(
+                        painter = painterResource(ringerIconRes),
+                        contentDescription = ringerContentDescription,
+                        modifier = Modifier.size(24.dp),
+                    )
+                },
+            )
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .size(axIconSize)
+                    .clip(CircleShape)
+                    .pointerInput(Unit) {
+                        detectTapGestures {
+                            if (hapticsEnabled) {
+                                val isOn = ringerMode != AudioManager.RINGER_MODE_SILENT
+                                view.performHapticFeedback(
+                                    if (isOn) HapticFeedbackConstants.TOGGLE_OFF
+                                    else HapticFeedbackConstants.TOGGLE_ON
+                                )
+                            }
+                            toggleRinger()
+                        }
+                    }
+            )
+        }
+        return
+    }
 
     val iconRes =
         if (value <= minVolume) R.drawable.ic_volume_media_mute else R.drawable.ic_volume_media
