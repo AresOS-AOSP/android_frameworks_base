@@ -621,11 +621,11 @@ private fun rememberVolumeSliderMode(): Int {
     fun readMode(): Int {
         return try {
             Settings.System.getIntForUser(
-                contentResolver, Settings.System.QS_SHOW_VOLUME_SLIDER, 1,
+                contentResolver, Settings.System.QS_SHOW_VOLUME_SLIDER, 0,
                 UserHandle.USER_CURRENT
             ).coerceIn(0, 2)
         } catch (_: Throwable) {
-            1
+            0
         }
     }
 
