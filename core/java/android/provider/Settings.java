@@ -15101,7 +15101,7 @@ public final class Settings {
         /**
          * @hide
          */
-        public static final String SPOOF_PIF_CONFIG = "spoof_pif_config";
+        public static final String SPOOF_PIF_CONFIG = "spoof_pif_config_v2";
 
         /**
          * @hide
@@ -15111,17 +15111,17 @@ public final class Settings {
         /**
          * @hide
          */
-        public static final String SPOOF_TRICKYSTORE_TARGET = "spoof_trickystore_target";
+        public static final String SPOOF_TRICKYSTORE_TARGET = "spoof_trickystore_target_v2";
 
         /**
          * @hide
          */
-        public static final String SPOOF_TRICKYSTORE_KEYBOX = "spoof_trickystore_keybox";
+        public static final String SPOOF_TRICKYSTORE_KEYBOX = "spoof_trickystore_keybox_v2";
 
         /**
          * @hide
          */
-        public static final String SPOOF_TRICKYSTORE_PATCH = "spoof_trickystore_patch";
+        public static final String SPOOF_TRICKYSTORE_PATCH = "spoof_trickystore_patch_v2";
     }
 
     /**
